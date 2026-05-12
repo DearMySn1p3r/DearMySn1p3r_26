@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARCH TACTICAL MISSION SYSTEM v3.4 (KOR_BRANCH)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@100;300;500;700;900&display=swap');
+
+        :root {
+            --bg: #000000;
+            --accent: #ffffff;
+            --dim: rgba(255, 255, 255, 0.4);
+            --dimmer: rgba(255, 255, 255, 0.1);
+            --sys-main: #ffffff;
+            --warn: #e8e8e8;
+            --crit: #ffffff;
+            --font: 'Orbitron', 'Noto Sans KR', sans-serif;
+        }
+
+        * { box-sizing: border-box; outline: none; cursor: none !important; }
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--sys-main); }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+
+        body {
+            margin: 0; background: var(--bg); color: var(--accent);
+            font-family: var(--font); min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 20px; user-select: none; overflow-x: hidden;
+        }
+
+        /* ── 십자 커서 (ARCH 스타일) ── */
+        #cursor {
+            position: fixed; width: 40px; height: 40px; border: 1px solid var(--sys-main);
+            border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); z-index: 20000;
+            transition: width 0.1s, height 0.1s, background-color 0.1s;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+        }
+        #cursor::before, #cursor::after { content: ''; position: absolute; background: var(--sys-main); }
+        #cursor::before { top: 50%; left: -5px; right: -5px; height: 1px; }
+        #cursor::after { left: 50%; top: -5px; bottom: -5px; width: 1px; }
+        .click-anim { 
+            width: 20px !important; height: 20px !important; 
+            background-color: rgba(255,255,255,0.3);
+            box-shadow: 0 0 25px var(--accent) !important;
+        }
+
+        /* ── 배경 효과 ── */
+        .scanline {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0) 50%, rgba(255,255,255,0.03) 50%);
+            background-size: 100% 4px; pointer-events: none; z-index: 9000;
+        }
+        .noise-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+            z-index: -1; pointer-events: none;
+        }
+
+        /* ── 헤더 ── */
+        header {
+            width: 1280px; height: 70px; border: 1px solid var(--sys-main);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 30px; background: rgba(10,10,10,0.95); margin-bottom: 15px;
+            box-shadow: 0 0 25px rgba(255,255,255,0.1);
+        }
+        .header-logo {
+            font-size: 22px; font-weight: 900; letter-spacing: 4px;
+            text-shadow: 0 0 12px rgba(255,255,255,0.8);
+        }
+        .header-sub { font-size: 11px; color: var(--dim); letter-spacing: 3px; }
+        .header-status {
+            font-size: 11px; color: var(--dim); line-height: 1.6;
+            font-family: monospace; text-align: right;
+        }
+        .header-status span { color: #fff; text-shadow: 0 0 5px #fff; }
+
+        /* ── 상단 컨트롤 ── */
+        #top-controls { 
+            margin-bottom: 15px; display: flex; gap: 12px; z-index: 5000; 
+            width: 1280px; justify-content: center; flex-wrap: wrap;
+        }
+        button.hud-btn {
+            background: transparent; border: 1px solid var(--sys-main); color: var(--sys-main);
+            padding: 12px 28px; font-family: 'Orbitron', 'Noto Sans KR'; font-weight: 700;
+            transition: 0.3s; letter-spacing: 3px; font-size: 12px;
+            text-shadow: 0 0 8px var(--sys-main); position: relative; overflow: hidden;
+        }
+        button.hud-btn:hover { 
+            background: var(--sys-main); color: #000; 
+            box-shadow: 0 0 25px var(--sys-main); text-shadow: none;
+        }
+        button.hud-btn::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+            transition: 0.5s;
+        }
+        button.hud-btn:hover::before { left: 100%; }
+
+        button.danger-btn { 
+            border-color: rgba(255,255,255,0.6); animation: pulseDanger 2s infinite;
+        }
+        @keyframes pulseDanger {
+            0%, 100% { box-shadow: 0 0 5px rgba(255,255,255,0.3); }
+            50% { box-shadow: 0 0 20px rgba(255,255,255,0.8); }
+        }
+        button.override-btn { 
+            border-color: #fff; animation: glitchBtn 0.5s infinite;
+        }
+        @keyframes glitchBtn {
+            0%, 100% { transform: translate(0); }
+            25% { transform: translate(-0.5px, 0.5px); text-shadow: 0.5px 0 #aaa, -0.5px 0 #fff; }
+            75% { transform: translate(0.5px, -0.5px); text-shadow: -0.5px 0 #aaa, 0.5px 0 #fff; }
+        }
+
+        /* ── 메인 캡처 영역 ── */
+        #capture {
+            width: 1280px; height: 820px; background: radial-gradient(circle at center, #0a0a0a 0%, #000 100%);
+            position: relative; box-sizing: border-box;
+            border: 2px solid var(--sys-main);
+            box-shadow: 0 0 40px rgba(255,255,255,0.1), inset 0 0 80px rgba(0,0,0,0.8);
+            overflow: hidden; transition: 0.2s;
+        }
+
+        /* 레이더 링 배경 */
+        .radar-ring {
+            position: absolute; border: 1px dashed rgba(255,255,255,0.15); border-radius: 50%;
+            pointer-events: none; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            animation: rotateRadar 30s linear infinite;
+        }
+        @keyframes rotateRadar { to { transform: translate(-50%, -50%) rotate(360deg); } }
+        .sweep-line {
+            position: absolute; width: 350px; height: 1px; 
+            background: linear-gradient(90deg, transparent, var(--sys-main));
+            top: 50%; left: 50%; transform-origin: 0 0; 
+            animation: sweep 6s linear infinite; pointer-events: none;
+            box-shadow: 0 0 15px rgba(255,255,255,0.5); z-index: 2;
+        }
+        @keyframes sweep { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+
+        /* ── 연출 애니메이션 ── */
+        @keyframes lowFlicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.93; } }
+        .low-noise { animation: lowFlicker 0.4s infinite; }
+
+        @keyframes midShake { 
+            0%, 100% { transform: translate(0,0); } 
+            50% { transform: translate(-0.5px, 0.5px); filter: brightness(1.05); } 
+        }
+        .mid-noise { animation: midShake 0.25s infinite; }
+
+        @keyframes severeGlitch { 
+            0%, 100% { transform: translate(0,0); filter: none; }
+            25% { transform: translate(-1px, 1px); filter: brightness(1.15) contrast(1.1); } 
+            50% { transform: translate(1px, -1px); filter: brightness(1.2); } 
+            75% { transform: translate(-1px, -1px); filter: contrast(1.15); } 
+        }
+        .critical-error { animation: severeGlitch 0.5s infinite; border-color: #fff !important; }
+        .extreme-alert { 
+            box-shadow: inset 0 0 150px rgba(255,255,255,0.35) !important; 
+            filter: brightness(1.2) contrast(1.15) !important;
+        }
+
+        @keyframes calmingPulse { 
+            0%, 100% { opacity: 0; transform: scale(1); } 
+            50% { opacity: 0.4; transform: scale(1.05); } 
+        }
+        .calming-effect { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%); 
+            mix-blend-mode: screen; animation: calmingPulse 2s infinite alternate; 
+            pointer-events: none; z-index: 9999; 
+        }
+
+        @keyframes healFlash { 
+            0% { box-shadow: inset 0 0 150px rgba(255,255,255,0.9); } 
+            100% { box-shadow: inset 0 0 0 transparent; } 
+        }
+        .heal-flash { animation: healFlash 1.2s ease-out; }
+
+        @keyframes colorReset { 
+            from { filter: brightness(1.2) contrast(1.15); } 
+            to { filter: none; } 
+        }
+        .stage-calming #capture { animation: colorReset 2s forwards; }
+
+        /* ── 상단 정보 바 ── */
+        #top-info {
+            position: absolute; top: 15px; left: 30px; right: 30px;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 10px; color: var(--dim); letter-spacing: 2px; z-index: 10;
+            font-family: 'Orbitron', monospace; pointer-events: none;
+        }
+        .info-block { display: flex; gap: 15px; }
+        .info-item { 
+            background: rgba(0,0,0,0.6); border: 1px solid var(--dimmer); 
+            padding: 5px 12px; 
+        }
+        .info-item b { color: #fff; text-shadow: 0 0 6px #fff; font-weight: 900; margin-left: 6px; }
+
+        /* ── 좌/우 에이전트 패널 ── */
+        .agent-panel {
+            position: absolute; width: 280px; height: 460px;
+            background: rgba(5,5,5,0.85); border: 1px solid var(--dimmer);
+            padding: 18px; z-index: 5; pointer-events: none;
+            box-shadow: 0 0 20px rgba(255,255,255,0.05), inset 0 0 30px rgba(0,0,0,0.5);
+        }
+        #panel-left { 
+            top: 55px; left: 30px;
+            clip-path: polygon(0 0, 100% 0, 100% 92%, 88% 100%, 0 100%);
+        }
+        #panel-right { 
+            bottom: 90px; right: 30px;
+            clip-path: polygon(12% 0, 100% 0, 100% 100%, 0 100%, 0 8%);
+        }
+        .agent-panel::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%;
+            background: linear-gradient(180deg, transparent, var(--sys-main), transparent);
+            opacity: 0.6;
+        }
+
+        .photo-frame { 
+            width: 220px; height: 220px; border: 1px solid var(--sys-main); 
+            background: #0a0a0a; background-size: cover; background-position: center;
+            margin: 0 auto 12px; box-shadow: 0 0 20px rgba(255,255,255,0.15);
+            position: relative;
+        }
+        .photo-frame::before, .photo-frame::after {
+            content: ''; position: absolute; width: 10px; height: 10px;
+            border: 1px solid var(--sys-main);
+        }
+        .photo-frame::before { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+        .photo-frame::after { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+        .role-tag { 
+            font-size: 10px; letter-spacing: 4px; color: var(--dim); 
+            text-align: center; margin-bottom: 4px; font-weight: 700;
+        }
+        .name-display { 
+            font-size: 22px; font-weight: 900; color: #fff; text-align: center;
+            text-shadow: 0 0 12px var(--sys-main); border-bottom: 1px solid var(--sys-main); 
+            padding-bottom: 6px; margin-bottom: 10px; letter-spacing: 2px;
+            font-family: 'Orbitron', 'Noto Sans KR';
+        }
+        .agent-stats {
+            font-size: 10px; line-height: 1.7; color: #ccc; font-family: monospace;
+            padding: 0 4px;
+        }
+        .agent-stats .stat-key { color: var(--dim); letter-spacing: 1px; }
+        .agent-stats .stat-val { color: #fff; text-shadow: 0 0 4px #fff; }
+
+        /* ── 중앙 코어 ── */
+        #center-core {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 580px; text-align: center; z-index: 100; display: flex; 
+            flex-direction: column; align-items: center; gap: 15px; pointer-events: auto;
+        }
+        #screen {
+            width: 560px; height: 360px; text-align: left;
+            font-family: 'Noto Sans KR', sans-serif; font-size: 13px; color: #eee;
+            border: 1px solid var(--sys-main); padding: 18px 22px;
+            background: rgba(0,0,0,0.92); overflow-y: auto; line-height: 1.8;
+            word-break: break-all; white-space: pre-wrap; 
+            box-shadow: inset 0 0 30px rgba(0,0,0,1), 0 0 25px rgba(255,255,255,0.1);
+            position: relative;
+        }
+        #screen::before {
+            content: ''; position: absolute; top: -1px; left: 15px; width: 80px; height: 3px;
+            background: var(--sys-main); box-shadow: 0 0 10px var(--sys-main);
+        }
+        .line { margin-bottom: 6px; }
+        .warning { color: #fff; font-weight: 700; text-shadow: 0 0 10px #fff; }
+        .glitch { 
+            animation: textGlitch 0.15s infinite; color: #fff; 
+            font-family: 'Orbitron'; font-weight: 900; letter-spacing: 2px;
+        }
+        .heal-text { 
+            color: #fff; font-weight: 700; text-shadow: 0 0 12px #fff;
+            background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);
+            padding-left: 4px;
+        }
+        .system-msg { color: var(--dim); font-size: 11px; font-family: monospace; }
+        .briefing-tag { 
+            color: #fff; font-weight: 900; letter-spacing: 2px; 
+            text-shadow: 0 0 10px #fff; font-family: 'Orbitron'; 
+        }
+
+        @keyframes textGlitch { 
+            0% { transform: translate(0); text-shadow: 1px 0 rgba(180,180,180,0.6), -1px 0 rgba(255,255,255,0.6); } 
+            25% { transform: translate(-0.5px, 0.5px); } 
+            50% { transform: translate(-0.5px, -0.5px); text-shadow: -1px 0 rgba(180,180,180,0.6), 1px 0 rgba(255,255,255,0.6); } 
+            75% { transform: translate(0.5px, 0.5px); } 
+            100% { transform: translate(0); } 
+        }
+        /* glitch 클래스 자체 속도도 살짝 느리게 → 눈 피로 완화 */
+        .glitch { animation-duration: 0.4s !important; }
+
+        /* ── 하단 오염도 바 ── */
+        #contam-wrapper { 
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 700px; z-index: 10; pointer-events: none;
+        }
+        .contam-label { 
+            font-size: 10px; color: var(--sys-main); display: flex; 
+            justify-content: space-between; margin-bottom: 6px; font-weight: 700;
+            letter-spacing: 3px; font-family: 'Orbitron';
+        }
+        #contam-bar { 
+            width: 100%; height: 10px; background: rgba(255,255,255,0.05); 
+            border: 1px solid var(--sys-main); position: relative; 
+            box-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+        #contam-fill { 
+            width: 0%; height: 100%; background: var(--sys-main); 
+            transition: width 0.6s; box-shadow: 0 0 15px var(--sys-main);
+        }
+        .contam-ticks {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: repeating-linear-gradient(90deg, transparent, transparent 9.9%, rgba(0,0,0,0.6) 9.9%, rgba(0,0,0,0.6) 10%);
+            pointer-events: none;
+        }
+
+        /* ── 선택지 ── */
+        .choice-container { 
+            display: flex; flex-direction: column; gap: 10px; align-items: center; 
+            width: 100%; pointer-events: auto; 
+        }
+        .choice-row { 
+            display: flex; gap: 10px; width: 100%; justify-content: center; flex-wrap: wrap; 
+        }
+
+        .choice-btn { 
+            background: rgba(0,0,0,0.95); border: 1px solid var(--sys-main); color: #fff; 
+            padding: 12px 18px; font-size: 12px; font-family: 'Noto Sans KR'; font-weight: 700;
+            transition: 0.25s; max-width: 280px; word-break: keep-all; pointer-events: auto;
+            text-align: left; letter-spacing: 0.5px; position: relative; overflow: hidden;
+        }
+        .choice-btn::after {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.4s;
+        }
+        .choice-btn:hover:not(.locked) { 
+            background: var(--sys-main); color: #000; 
+            box-shadow: 0 0 20px var(--sys-main); transform: translateY(-2px); 
+        }
+        .choice-btn:hover:not(.locked)::after { left: 100%; }
+
+        .choice-btn.locked {
+            background: rgba(20,20,20,0.8); border-color: rgba(255,255,255,0.15); 
+            color: rgba(255,255,255,0.25); text-decoration: line-through; 
+            cursor: not-allowed !important; font-style: italic;
+        }
+
+        @keyframes choiceBreak {
+            0% { transform: translate(0) skew(0); opacity: 1; }
+            25% { transform: translate(-1px, 1px) skew(-2deg); opacity: 0.85; }
+            50% { transform: translate(-1px, -1px) skew(2deg); opacity: 0.92; text-shadow: 1px 0 rgba(170,170,170,0.6); }
+            75% { transform: translate(1px, 1px) skew(-1.5deg); opacity: 0.85; }
+            100% { transform: translate(0) skew(0); opacity: 1; }
+        }
+        .choice-btn.broken {
+            animation: choiceBreak 0.5s infinite;
+            border-color: rgba(255,255,255,0.4); 
+            background: rgba(40,40,40,0.85); 
+            font-family: 'Orbitron', 'Noto Sans KR'; color: #fff;
+        }
+
+        .choice-btn.emergency {
+            border: 2px solid #fff; color: #fff; font-weight: 900;
+            background: rgba(255,255,255,0.1); animation: glitchBtn 0.35s infinite;
+            box-shadow: 0 0 20px #fff;
+        }
+
+        .choice-btn.dual-special {
+            border-color: #fff; background: rgba(255,255,255,0.08);
+            box-shadow: 0 0 12px rgba(255,255,255,0.4);
+        }
+        .choice-btn.dual-special::before {
+            content: '◆ '; color: #fff; text-shadow: 0 0 8px #fff;
+        }
+
+        /* ── 하단 UI ── */
+        #lower-ui { 
+            width: 1280px; margin-top: 18px; background: rgba(10,10,10,0.95); 
+            padding: 25px; border: 1px solid var(--sys-main); 
+            box-shadow: 0 0 20px rgba(255,255,255,0.08);
+        }
+        .ui-title {
+            font-size: 12px; letter-spacing: 4px; color: #fff; font-weight: 900;
+            border-bottom: 1px solid var(--sys-main); padding-bottom: 8px; margin-bottom: 18px;
+            text-shadow: 0 0 8px #fff;
+        }
+        .input-row { 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 18px; 
+        }
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        .agent-label {
+            font-size: 11px; letter-spacing: 3px; color: var(--dim); font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .input-row-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        select, input[type=text] { 
+            background: rgba(0,0,0,0.9); color: #fff; 
+            border: 1px solid var(--dimmer); padding: 10px 12px; 
+            font-family: 'Noto Sans KR'; font-size: 12px; font-weight: 500;
+            transition: 0.2s;
+        }
+        select { color: #fff; font-weight: 700; font-family: 'Orbitron', 'Noto Sans KR'; }
+        input:focus, select:focus { 
+            border-color: var(--sys-main); box-shadow: 0 0 12px rgba(255,255,255,0.3); 
+        }
+        input[type=file] { 
+            font-size: 10px; color: var(--dim); padding: 8px;
+            background: transparent; border: 1px dashed var(--dimmer);
+        }
+        textarea { 
+            width: 100%; height: 200px; color: #fff; margin-top: 12px; resize: none; 
+            line-height: 1.7; background: rgba(0,0,0,0.95); border: 1px solid var(--dimmer);
+            padding: 16px; font-family: 'Noto Sans KR'; font-size: 12px;
+        }
+        textarea:focus { border-color: var(--sys-main); }
+
+        .button-row { display: flex; gap: 10px; }
+        .button-row .hud-btn { flex: 1; padding: 14px; }
+        .button-row .copy-btn { max-width: 160px; }
+
+        /* ── 페어 타입 표시 ── */
+        #pair-indicator {
+            position: absolute; top: 55px; left: 50%; transform: translateX(-50%);
+            font-size: 10px; letter-spacing: 4px; color: var(--dim); font-weight: 900;
+            padding: 6px 18px; border: 1px solid var(--dimmer); background: rgba(0,0,0,0.7);
+            z-index: 50; pointer-events: none;
+        }
+        #pair-indicator b { color: #fff; text-shadow: 0 0 6px #fff; margin-left: 8px; }
+    </style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div class="scanline"></div>
+<div class="noise-bg"></div>
+<div id="calming-layer"></div>
+
+<header>
+    <div>
+        <span class="header-logo">ARCH</span>
+        <span class="header-sub">| TACTICAL_MISSION_SYSTEM_V3.4</span>
+    </div>
+    <div class="header-status">
+        SYSTEM: <span>ONLINE</span> // PROTOCOL: <span>SECURE</span><br>
+        <span id="clock">00:00:00</span> KST
+    </div>
+</header>
+
+<div id="top-controls">
+    <button class="hud-btn" id="mainStartBtn" onclick="startMission()">▶ MISSION START</button>
+    <button class="hud-btn danger-btn" onclick="resetContamination(false)">EMERGENCY STABILIZE</button>
+    <button class="hud-btn override-btn" onclick="forceBerserk()">[ OVERRIDE_100% ]</button>
+    <button class="hud-btn" onclick="saveImage()">[ REC ] CAPTURE</button>
+</div>
+
+<div id="capture">
+    <!-- 레이더 배경 -->
+    <div class="radar-ring" style="width:300px; height:300px; border-top: 2px solid #fff;"></div>
+    <div class="radar-ring" style="width:550px; height:550px; border-bottom: 1px solid rgba(255,255,255,0.3); animation-direction: reverse; animation-duration: 40s;"></div>
+    <div class="radar-ring" style="width:780px; height:780px; border-left: 1px solid rgba(255,255,255,0.2); animation-duration: 50s;"></div>
+    <div class="sweep-line"></div>
+
+    <!-- 상단 정보 바 -->
+    <div id="top-info">
+        <div class="info-block">
+            <div class="info-item">OPR_ID<b id="opr-id">ARCH-XXXXXXX</b></div>
+            <div class="info-item">THREAT_LV<b id="threat-lv">STANDBY</b></div>
+        </div>
+        <div class="info-block">
+            <div class="info-item">SYNC<b id="sync-rate">--%</b></div>
+            <div class="info-item">CORE<b id="core-stat">STABLE</b></div>
+        </div>
+    </div>
+
+    <!-- 페어 타입 표시 -->
+    <div id="pair-indicator">PAIR_TYPE<b id="pair-type">UNDEFINED</b></div>
+
+    <!-- 좌측 에이전트 -->
+    <div id="panel-left" class="agent-panel">
+        <div class="photo-frame" id="char1"></div>
+        <div class="role-tag" id="outRole1">SENTINEL</div>
+        <div class="name-display" id="outName1">AGENT_A</div>
+        <div class="agent-stats" id="statDesc1">
+            <span class="stat-key">RANK</span> : <span class="stat-val">AGENT</span><br>
+            <span class="stat-key">ELEM</span> : <span class="stat-val">NONE</span><br>
+            <span class="stat-key">STABILITY</span> : <span class="stat-val">62%</span><br>
+            <span class="stat-key">STATE</span> : 가이딩 대기
+        </div>
+    </div>
+
+    <!-- 중앙 -->
+    <div id="center-core">
+        <div id="screen">
+            <div class="line briefing-tag">[ ARCH TACTICAL SYSTEM — STANDBY ]</div>
+            <div class="line" style="margin-top:8px;">하단에 요원 정보를 입력한 뒤 [MISSION START] 버튼으로 작전을 개시합니다.</div>
+            <div class="line system-msg" style="margin-top:10px;">▷ 페어 유형: 센티넬×가이드 / 가이드×가이드 / 센티넬×센티넬 모두 지원됩니다.</div>
+            <div class="line system-msg">▷ 페어 유형에 따라 전용 선택지가 활성화 / 잠금됩니다.</div>
+            <div class="line" style="color:var(--dim); margin-top:14px; font-size:11px;">* 주의: 현재 뱅가드 [이카로스] 하늘정원 단독 작전 중. [발할라] 코드 레드 대기.</div>
+        </div>
+        <div id="choice-area" class="choice-container"></div>
+    </div>
+
+    <!-- 우측 에이전트 -->
+    <div id="panel-right" class="agent-panel">
+        <div class="photo-frame" id="char2"></div>
+        <div class="role-tag" id="outRole2">GUIDE</div>
+        <div class="name-display" id="outName2">AGENT_B</div>
+        <div class="agent-stats" id="statDesc2">
+            <span class="stat-key">RANK</span> : <span class="stat-val">AGENT</span><br>
+            <span class="stat-key">ELEM</span> : <span class="stat-val">NONE</span><br>
+            <span class="stat-key">RESONANCE</span> : <span class="stat-val">88%</span><br>
+            <span class="stat-key">STATE</span> : 파장 방사 정상
+        </div>
+    </div>
+
+    <!-- 오염도 바 -->
+    <div id="contam-wrapper">
+        <div class="contam-label" id="contam-label-text">
+            <span>CONTAMINATION_INDEX // 가이딩 필요 수치</span>
+            <span id="contam-val">0%</span>
+        </div>
+        <div id="contam-bar">
+            <div id="contam-fill"></div>
+            <div class="contam-ticks"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 하단 UI -->
+<div id="lower-ui">
+    <div class="ui-title">▶ AGENT_REGISTRATION // 요원 등록 및 작전 브리핑</div>
+    <div class="input-row">
+        <div class="input-group">
+            <span class="agent-label">AGENT_A // 좌측 요원</span>
+            <input type="text" id="name1" placeholder="식별명을 입력하세요" oninput="syncUI(1)">
+            <div class="input-row-inner">
+                <select id="role1" onchange="syncUI(1)">
+                    <option value="SENTINEL">센티넬 (SENTINEL)</option>
+                    <option value="GUIDE">가이드 (GUIDE)</option>
+                </select>
+                <select id="rank1" onchange="syncUI(1)">
+                    <option value="PRIMA">아크 프리마</option>
+                    <option value="VANGUARD">뱅가드 (S)</option>
+                    <option value="AGENT" selected>에이전트 (A~B)</option>
+                    <option value="ACOLYTE">애콜라이트 (C-)</option>
+                </select>
+            </div>
+            <select id="elem1" onchange="syncUI(1)">
+                <option value="NONE">무속성 (Non-Attribute)</option>
+                <option value="PYRE">🔥 불 (Pyre)</option>
+                <option value="AQUA">💧 물 (Aqua)</option>
+                <option value="VERDE">🌿 풀 (Verde)</option>
+                <option value="FULMEN">⚡ 번개 (Fulmen)</option>
+                <option value="AERO">💨 바람 (Aero)</option>
+                <option value="GLACIES">❄️ 얼음 (Glacies)</option>
+            </select>
+            <input type="file" id="file1">
+        </div>
+        <div class="input-group">
+            <span class="agent-label">AGENT_B // 우측 요원</span>
+            <input type="text" id="name2" placeholder="식별명을 입력하세요" oninput="syncUI(2)">
+            <div class="input-row-inner">
+                <select id="role2" onchange="syncUI(2)">
+                    <option value="GUIDE">가이드 (GUIDE)</option>
+                    <option value="SENTINEL">센티넬 (SENTINEL)</option>
+                </select>
+                <select id="rank2" onchange="syncUI(2)">
+                    <option value="PRIMA">아크 프리마</option>
+                    <option value="VANGUARD">뱅가드 (S)</option>
+                    <option value="AGENT" selected>에이전트 (A~B)</option>
+                    <option value="ACOLYTE">애콜라이트 (C-)</option>
+                </select>
+            </div>
+            <select id="elem2" onchange="syncUI(2)">
+                <option value="NONE">무속성 (Non-Attribute)</option>
+                <option value="PYRE">🔥 불 (Pyre)</option>
+                <option value="AQUA">💧 물 (Aqua)</option>
+                <option value="VERDE">🌿 풀 (Verde)</option>
+                <option value="FULMEN">⚡ 번개 (Fulmen)</option>
+                <option value="AERO">💨 바람 (Aero)</option>
+                <option value="GLACIES">❄️ 얼음 (Glacies)</option>
+            </select>
+            <input type="file" id="file2">
+        </div>
+    </div>
+    <div class="button-row">
+        <button class="hud-btn" onclick="generateOOC()">GENERATE_OOC_PROTOCOL</button>
+        <button class="hud-btn copy-btn" onclick="copyOOC()">📋 COPY</button>
+    </div>
+    <textarea id="oocBox" readonly placeholder="ARCH 전략 사령부 작전 브리핑 및 OOC 상황문이 이곳에 생성됩니다..."></textarea>
+</div>
+
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script>
+// ============== ARCH TACTICAL MISSION SYSTEM JS ==============
+
+// --- 커서 추적 ---
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', (e) => {
+    cursor.style.left = e.clientX + 'px'; cursor.style.top = e.clientY + 'px';
+});
+document.addEventListener('mousedown', () => cursor.classList.add('click-anim'));
+document.addEventListener('mouseup', () => cursor.classList.remove('click-anim'));
+
+// --- 실시간 시계 ---
+setInterval(() => {
+    const now = new Date();
+    document.getElementById('clock').innerText = now.toLocaleTimeString('en-GB');
+}, 1000);
+
+// --- 전역 상태 ---
+let contamLevel = 0;
+let currentMissionContext = null;
+let isBerserk = false;
+let currentPhase = 0;
+let isTyping = false;
+
+// --- 라벨 매핑 ---
+const ELEM_LABEL = {
+    NONE: "무속성", PYRE: "🔥 불 (Pyre)", AQUA: "💧 물 (Aqua)",
+    VERDE: "🌿 풀 (Verde)", FULMEN: "⚡ 번개 (Fulmen)",
+    AERO: "💨 바람 (Aero)", GLACIES: "❄️ 얼음 (Glacies)"
+};
+const RANK_LABEL = {
+    PRIMA: "아크 프리마", VANGUARD: "뱅가드 (S급)",
+    AGENT: "에이전트 (A~B급)", ACOLYTE: "애콜라이트 (C급)"
+};
+const RANK_SHORT = {
+    PRIMA: "PRIMA", VANGUARD: "VANGUARD",
+    AGENT: "AGENT", ACOLYTE: "ACOLYTE"
+};
+
+// --- 속성별 폭주 징후 데이터 ---
+const BERSERK_SYMPTOMS = {
+    PYRE: {
+        label: "🔥 불 (Pyre) 폭주",
+        symptoms: [
+            ">> 살갗 아래에서 화염이 끓어오릅니다. 혈관마다 용암이 흐르는 듯한 환각열이 신경을 익혀버립니다.",
+            ">> 시야 가장자리가 새빨갛게 일렁입니다. 눈에 보이는 모든 것을 태우고 싶다는 충동이 사고를 잠식합니다.",
+            ">> 호흡마다 검은 연기가 흘러나옵니다. 입꼬리에서 떨어진 침방울이 바닥에서 지글거리며 증발합니다."
+        ],
+        cry: ">> \"...전부, 재로 만들어버리면 그만이잖아.\"",
+        finalSign: ">> 발 밑의 콘크리트가 붉게 달아오르며 갈라지기 시작합니다. 임계 폭발 직전."
+    },
+    AQUA: {
+        label: "💧 물 (Aqua) 폭주",
+        symptoms: [
+            ">> 폐가 천천히 잠겨갑니다. 깊은 심해에 가라앉는 듯한 질식감이 가슴을 짓누릅니다.",
+            ">> 모든 소리가 물에 잠긴 듯 멀어집니다. 사이렌도, 부르는 목소리도 둔탁하게만 울립니다.",
+            ">> 눈물도 침도 흐르지 않습니다 — 체내의 모든 수분이 압력으로 응축되어 안에서 비명을 지릅니다."
+        ],
+        cry: ">> \"...아무것도, 들리지 않아. 차라리, 다 잠가버릴게.\"",
+        finalSign: ">> 천장에서 수증기가 응결되어 비처럼 떨어집니다. 주변 공기가 가라앉을 만큼 무거워집니다."
+    },
+    VERDE: {
+        label: "🌿 풀 (Verde) 폭주",
+        symptoms: [
+            ">> 환상의 덩굴이 온몸을 휘감습니다. 살갗 위로 가시가 돋아나오는 듯한 환각이 신경을 긁어댑니다.",
+            ">> 모든 감각이 극도로 예민해져, 옷깃의 마찰조차 칼날처럼 살점을 베어냅니다.",
+            ">> 호흡할 때마다 폐 안에서 무언가가 자라나는 감각. 자신의 몸이 흙처럼 느껴집니다."
+        ],
+        cry: ">> \"...닿지 마. 닿지 말라고. 전부, 묶어버리기 전에.\"",
+        finalSign: ">> 발 밑의 콘크리트 틈새로 검은 덩굴이 솟구치며 주변을 옭아매기 시작합니다."
+    },
+    FULMEN: {
+        label: "⚡ 번개 (Fulmen) 폭주",
+        symptoms: [
+            ">> 심장이 멎었다 다시 뛰기를 반복합니다. 정전기 같은 통증이 신경 다발을 따라 작렬합니다.",
+            ">> 손끝부터 시작된 경련이 온몸을 휩쓸어, 의지와 무관하게 근육이 비틀리고 굳습니다.",
+            ">> 망막 위로 푸른 불꽃이 튀어오릅니다. 시야가 1초마다 정전되었다 돌아옵니다."
+        ],
+        cry: ">> \"...멈춰. 멈추란, 말이야 ━━\"",
+        finalSign: ">> 주변 조명이 일제히 깜빡이며 터집니다. 사방에서 백색 스파크가 튀어오릅니다."
+    },
+    AERO: {
+        label: "💨 바람 (Aero) 폭주",
+        symptoms: [
+            ">> 고막을 찢는 듯한 이명이 두개골을 두드립니다. 모든 음이 비명이 됩니다.",
+            ">> 보이지 않는 칼날이 온몸을 베어내는 환각통. 자신의 살갗이 어디서 끝나는지조차 모릅니다.",
+            ">> 호흡할 때마다 폐가 텅 빈 듯한 감각. 발이 바닥에서 천천히 떠오르고 있습니다."
+        ],
+        cry: ">> \"...전부, 흩어버려 줄게. 형체도 남기지 않고.\"",
+        finalSign: ">> 챔버 안에 거대한 진공이 형성됩니다. 주변의 모든 물체가 한 점을 향해 흡인되기 시작합니다."
+    },
+    GLACIES: {
+        label: "❄️ 얼음 (Glacies) 폭주",
+        symptoms: [
+            ">> 심장 깊은 곳부터 얼어붙어 옵니다. 환각의 동상이 손끝을 까맣게 물들이며 위로 번져옵니다.",
+            ">> 사고가 느려집니다. 반응 속도도, 감정도, 자기 자신마저도 정지하기 직전입니다.",
+            ">> 호흡할 때마다 입김이 결정으로 굳어 떨어집니다. 표정조차 얼어붙어 더는 움직이지 않습니다."
+        ],
+        cry: ">> \"...아무것도, 느껴지지 않아. 그러니까, 전부 멈춰버리자.\"",
+        finalSign: ">> 챔버 벽면에 얼음 결정이 빠르게 번져나갑니다. 온도계가 한계까지 떨어집니다."
+    },
+    NONE: {
+        label: "무속성 폭주",
+        symptoms: [
+            ">> 능력의 원천 그 자체가 폭주합니다. 형용할 수 없는 원초적 힘이 신경계를 짓밟아옵니다.",
+            ">> 자아의 경계가 흐려집니다. 자신이 누구인지조차 잊혀가는 감각이 의식을 잠식합니다.",
+            ">> 시야에 보이는 모든 형태가 의미를 잃습니다. 적인지 아군인지조차 구분되지 않습니다."
+        ],
+        cry: ">> \"...나는, 누구지. 너는, 누구야.\"",
+        finalSign: ">> 보이지 않는 압력이 사방에서 짓눌러옵니다. 공기 자체가 비명을 지르는 듯합니다."
+    }
+};
+
+// --- 속성별 가이딩 진정 묘사 ---
+const CALMING_FLAVOR = {
+    PYRE: ">> 끓어오르던 화염이 가이드의 차분한 파장에 부딪혀 천천히 잦아듭니다. 살갗의 열기가 사람의 온도로 돌아옵니다.",
+    AQUA: ">> 잠겨가던 의식이 가이드의 손에 끌려 천천히 수면으로 떠오릅니다. 멀어졌던 소리들이 하나씩 또렷해집니다.",
+    VERDE: ">> 살갗을 옥죄던 환상의 덩굴이 가이드의 체온에 닿자 시들어 떨어집니다. 과민해진 감각이 인간의 것으로 잦아듭니다.",
+    FULMEN: ">> 작렬하던 전류가 가이드의 안정적인 박동에 동기화됩니다. 비틀려있던 근육이 천천히 풀어집니다.",
+    AERO: ">> 두개골을 두드리던 이명이 가이드의 숨결 하나로 잦아듭니다. 베이는 듯한 환각통이 따뜻한 감촉으로 덮입니다.",
+    GLACIES: ">> 얼어붙어 있던 심장이 가이드의 체온에 서서히 녹아내립니다. 멈췄던 사고가 다시 흐르기 시작합니다.",
+    NONE: ">> 흐려졌던 자아의 경계가 가이드의 파장 안에서 천천히 윤곽을 되찾습니다. 자신이 누구인지가 다시 떠오릅니다."
+};
+
+// --- 페어 타입 판별 ---
+function getPairType() {
+    const r1 = document.getElementById('role1').value;
+    const r2 = document.getElementById('role2').value;
+    if (r1 === 'SENTINEL' && r2 === 'SENTINEL') return 'SS';
+    if (r1 === 'GUIDE' && r2 === 'GUIDE') return 'GG';
+    return 'SG';
+}
+
+function checkHasGuide() {
+    const r1 = document.getElementById('role1').value;
+    const r2 = document.getElementById('role2').value;
+    return (r1 === 'GUIDE' || r2 === 'GUIDE');
+}
+function checkHasSentinel() {
+    const r1 = document.getElementById('role1').value;
+    const r2 = document.getElementById('role2').value;
+    return (r1 === 'SENTINEL' || r2 === 'SENTINEL');
+}
+
+// 폭주 묘사를 위한 센티넬 속성 + 이름 추출
+function getSentinelInfo() {
+    const r1 = document.getElementById('role1').value;
+    const r2 = document.getElementById('role2').value;
+    const n1 = document.getElementById('name1').value || 'AGENT_A';
+    const n2 = document.getElementById('name2').value || 'AGENT_B';
+    const e1 = document.getElementById('elem1').value;
+    const e2 = document.getElementById('elem2').value;
+    const list = [];
+    if (r1 === 'SENTINEL') list.push({ name: n1, elem: e1 });
+    if (r2 === 'SENTINEL') list.push({ name: n2, elem: e2 });
+    return list;
+}
+function getGuideInfo() {
+    const r1 = document.getElementById('role1').value;
+    const r2 = document.getElementById('role2').value;
+    const n1 = document.getElementById('name1').value || 'AGENT_A';
+    const n2 = document.getElementById('name2').value || 'AGENT_B';
+    const e1 = document.getElementById('elem1').value;
+    const e2 = document.getElementById('elem2').value;
+    const list = [];
+    if (r1 === 'GUIDE') list.push({ name: n1, elem: e1 });
+    if (r2 === 'GUIDE') list.push({ name: n2, elem: e2 });
+    return list;
+}
+
+// 짧은 딜레이 헬퍼
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+// --- UI 동기화 ---
+function syncUI(id) {
+    const role = document.getElementById('role' + id).value;
+    const val = document.getElementById('name' + id).value;
+    const rank = document.getElementById('rank' + id).value;
+    const elem = document.getElementById('elem' + id).value;
+
+    document.getElementById('outRole' + id).innerText = role + " // " + RANK_SHORT[rank];
+    document.getElementById('outName' + id).innerText = val.toUpperCase() || 'AGENT_' + (id === 1 ? 'A' : 'B');
+
+    const stat = document.getElementById('statDesc' + id);
+    let line3, line4;
+    if (role === 'SENTINEL') {
+        const stability = Math.floor(Math.random() * 30 + 55);
+        line3 = `<span class="stat-key">STABILITY</span> : <span class="stat-val">${stability}%</span>`;
+        line4 = `<span class="stat-key">STATE</span> : 가이딩 대기`;
+    } else {
+        const resonance = Math.floor(Math.random() * 15 + 80);
+        line3 = `<span class="stat-key">RESONANCE</span> : <span class="stat-val">${resonance}%</span>`;
+        line4 = `<span class="stat-key">STATE</span> : 파장 방사 정상`;
+    }
+    stat.innerHTML = `
+        <span class="stat-key">RANK</span> : <span class="stat-val">${RANK_SHORT[rank]}</span><br>
+        <span class="stat-key">ELEM</span> : <span class="stat-val">${ELEM_LABEL[elem]}</span><br>
+        ${line3}<br>
+        ${line4}
+    `;
+    updatePairIndicator();
+}
+
+function updatePairIndicator() {
+    const pair = getPairType();
+    const pairText = { SG: 'SENTINEL × GUIDE', SS: 'SENTINEL × SENTINEL', GG: 'GUIDE × GUIDE' };
+    document.getElementById('pair-type').innerText = pairText[pair];
+}
+
+document.getElementById('file1').onchange = e => { 
+    if(e.target.files[0]) document.getElementById('char1').style.backgroundImage = `url(${URL.createObjectURL(e.target.files[0])})`; 
+};
+document.getElementById('file2').onchange = e => { 
+    if(e.target.files[0]) document.getElementById('char2').style.backgroundImage = `url(${URL.createObjectURL(e.target.files[0])})`; 
+};
+
+// --- 타이핑 엔진 ---
+async function type(text, msgType = 'normal') {
+    const screen = document.getElementById('screen');
+    const div = document.createElement("div");
+    div.className = "line";
+    if (msgType === 'warning') div.classList.add('warning');
+    if (msgType === 'glitch') div.classList.add('glitch');
+    if (msgType === 'system-msg') div.classList.add('system-msg');
+    if (msgType === 'heal') div.classList.add('heal-text');
+    if (msgType === 'briefing-tag') div.classList.add('briefing-tag');
+    if (msgType === 'warning glitch') { div.classList.add('warning'); div.classList.add('glitch'); }
+
+    screen.appendChild(div);
+    for (let i = 0; i < text.length; i++) {
+        if (text[i] === ' ') div.innerHTML += '&nbsp;';
+        else div.appendChild(document.createTextNode(text[i]));
+        screen.scrollTop = screen.scrollHeight;
+        await new Promise(r => setTimeout(r, 9));
+    }
+}
+
+// --- 오염도 단계 효과 ---
+async function checkContaminationEffects() {
+    const capture = document.getElementById('capture');
+    capture.classList.remove('low-noise', 'mid-noise', 'critical-error', 'extreme-alert');
+    const coreStat = document.getElementById('core-stat');
+
+    if (contamLevel < 40) {
+        currentPhase = 0;
+        coreStat.innerText = "STABLE";
+    } else if (contamLevel < 70) {
+        capture.classList.add('low-noise');
+        coreStat.innerText = "CAUTION";
+        if (currentPhase < 1) {
+            currentPhase = 1;
+            await type(">> [SYS_NOTICE] 파장 미세 진동 감지. 가이딩 권장 수치 도달.", "system-msg");
+        }
+    } else if (contamLevel < 85) {
+        capture.classList.add('mid-noise');
+        coreStat.innerText = "WARNING";
+        if (currentPhase < 2) {
+            currentPhase = 2;
+            await type(">> WARNING: 감각 과부하 발생. 신경계가 비명을 지릅니다.", "warning");
+            await type(">> 즉시 가이딩 또는 안정화 프로토콜이 요구됩니다.", "warning glitch");
+        }
+    } else if (contamLevel < 100) {
+        capture.classList.add('critical-error');
+        coreStat.innerText = "CRITICAL";
+        if (currentPhase < 3) {
+            currentPhase = 3;
+            await type(">> ERR0R ERR0R STAB_THRESHOLD_BREACH", "warning glitch");
+            await type(">> 비상 안정화실(STAB) 호송 프로토콜이 자동 발동 직전입니다.", "warning glitch");
+        }
+    }
+}
+
+async function updateContamination(amount) {
+    contamLevel = Math.min(Math.max(contamLevel + amount, 0), 100);
+    const fill = document.getElementById('contam-fill');
+    const val = document.getElementById('contam-val');
+    const labelText = document.getElementById('contam-label-text');
+
+    fill.style.width = contamLevel + '%';
+    val.innerText = contamLevel + '%';
+
+    const role1 = document.getElementById('role1').value;
+    const role2 = document.getElementById('role2').value;
+    const name1 = document.getElementById('name1').value || 'AGENT_A';
+    const name2 = document.getElementById('name2').value || 'AGENT_B';
+    const pair = getPairType();
+    
+    let focusName;
+    if (pair === 'SG') {
+        focusName = role1 === 'SENTINEL' ? name1 : name2;
+    } else if (pair === 'SS') {
+        focusName = name1 + " / " + name2;
+    } else {
+        focusName = name1 + " / " + name2;
+    }
+
+    if (contamLevel < 100) {
+        isBerserk = false;
+        document.body.classList.remove('stage-calming');
+        document.getElementById('calming-layer').classList.remove('calming-effect');
+    }
+
+    if (contamLevel >= 85 && contamLevel < 100) {
+        fill.style.background = "#fff";
+        fill.style.boxShadow = "0 0 25px #fff, 0 0 50px #fff";
+    } else if (contamLevel === 100) {
+        if (!isBerserk) {
+            isBerserk = true;
+            fill.style.background = "#fff";
+            fill.style.boxShadow = "0 0 30px #fff, 0 0 60px #fff";
+            await handleBerserkEvent(focusName, pair);
+            return;
+        }
+    } else {
+        fill.style.background = "var(--sys-main)";
+        fill.style.boxShadow = "0 0 15px var(--sys-main)";
+    }
+
+    await checkContaminationEffects();
+}
+
+async function forceBerserk() {
+    if (isBerserk) return;
+    if (confirm("[OVERRIDE] 가이딩 필요 수치를 강제로 100%까지 끌어올리시겠습니까?\n현재 페어 유형에 따라 폭주 / 파장 붕괴가 발생합니다.")) {
+        await updateContamination(100 - contamLevel);
+    }
+}
+
+function triggerHealEffect() {
+    const capture = document.getElementById('capture');
+    capture.classList.add('heal-flash');
+    setTimeout(() => capture.classList.remove('heal-flash'), 1200);
+}
+
+// --- 폭주/붕괴 이벤트 ---
+async function handleBerserkEvent(focusName, pair) {
+    document.getElementById('choice-area').innerHTML = "";
+    const capture = document.getElementById('capture');
+    capture.classList.add('critical-error', 'extreme-alert');
+    document.getElementById('threat-lv').innerText = "CRITICAL";
+    document.getElementById('core-stat').innerText = "BERSERK";
+
+    // ─── 공통 1차 시퀀스 ───
+    await type(">> ━━━━━━━━━━━━━━━━━━━━━━━━━━━", "warning glitch");
+    await type(">> [FATAL] CONTAMINATION_INDEX // 100% — 임계 돌파.", "warning glitch");
+    await type(">> 강제 구속 프로토콜 붕괴. 신경계 차단 회로 OVERRIDE.", "warning glitch");
+    await wait(400);
+
+    if (pair === 'SG' || pair === 'SS') {
+        // ─── 센티넬 폭주: 속성별 묘사 ───
+        const sentinels = getSentinelInfo();
+
+        for (const s of sentinels) {
+            const sym = BERSERK_SYMPTOMS[s.elem] || BERSERK_SYMPTOMS.NONE;
+            await type("-----------------------------------");
+            await type(`>> [BERSERK] ${s.name} — ${sym.label}`, "warning glitch");
+            await wait(300);
+            for (const line of sym.symptoms) {
+                await type(line, "warning");
+                await wait(250);
+            }
+            await wait(300);
+            await type(sym.cry, "warning glitch");
+            await wait(400);
+            await type(sym.finalSign, "warning");
+            await wait(350);
+        }
+
+        await type("-----------------------------------");
+
+        if (pair === 'SG') {
+            const s = sentinels[0];
+            const guides = getGuideInfo();
+            const g = guides[0] || { name: '가이드', elem: 'NONE' };
+            await triggerBerserkCalming(s, g);
+        } else {
+            // SS — 가이드 부재
+            await type(">> [긴급 경고] 페어에 가이드 부재. 두 센티넬의 폭주 파장이 서로의 신경계를 깎아내며 충돌합니다.", "warning glitch");
+            await type(">> 동반 폭주 직전. 인근 거점 초토화 위험 — 외부 개입이 필요합니다.", "warning");
+            await type(">> [경고] 60초 내 선택 — 그 이후엔 시스템이 강제 개입합니다.", "warning glitch");
+            renderChoices([
+                { text: "[SYSTEM] STAB 호송 — 수면 가스 살포 및 강제 격리", isEmergency: true },
+                { text: "[SYSTEM] 외부 뱅가드 [발할라] 긴급 투입 요청", isEmergency: true },
+                { text: "[가이드 호출] 인근 모든 가용 가이드 — 즉시 집결 요청", isEmergency: true }
+            ], async (opt) => {
+                document.getElementById('choice-area').innerHTML = "";
+                isTyping = true;
+                if (opt.text.includes("STAB")) {
+                    await type(">> [SYSTEM OVERRIDE] 수면 가스 및 고농축 억제제 살포. STAB 호송 차량 출동.", "warning");
+                    await wait(350);
+                    await type(">> 두 센티넬의 생체 신호가 강제로 저하되며 의식을 잃습니다.", "system-msg");
+                    await wait(350);
+                    await type(">> 별도 챔버로 분리 호송. 향후 며칠 간 격리 처분.", "system-msg");
+                } else if (opt.text.includes("발할라")) {
+                    await type(">> [SYSTEM OVERRIDE] 뱅가드 [발할라] 도착. 압도적인 화염 파장으로 두 폭주체를 동시에 짓누릅니다.", "warning");
+                    await wait(350);
+                    await type(">> 두 사람 모두 무릎을 꿇고 더 이상 일어서지 못합니다.", "system-msg");
+                    await wait(350);
+                    await type(">> 사후 처분 위원회 소집 예고. 정직 처분 가능성.", "system-msg");
+                } else {
+                    await type(">> [HARMONY] 인근 모든 가이드 5명이 챔버로 집결합니다. 각자 위치에서 동시에 손을 뻗습니다.", "heal");
+                    await wait(400);
+                    await type(">> 5중 가이딩의 압도적인 파장에 두 폭주체가 천천히 무릎을 꿇습니다.", "heal");
+                    await wait(400);
+                    await type(">> 흔치 않은 광경. 그러나 가장 인도적인 결말.", "heal");
+                    triggerHealEffect();
+                }
+                setTimeout(() => { isTyping = false; resetContamination(true); }, 3000);
+            });
+            return;
+        }
+    } else {
+        // ─── GG — 가이드끼리 공명 폭주 ───
+        const guides = getGuideInfo();
+        await type("-----------------------------------");
+        await type(`>> [RESONANCE_OVERLOAD] ${guides[0].name} × ${guides[1].name} — 가이드 공명 폭주`, "warning glitch");
+        await wait(300);
+        await type(">> 받아들이기만 하는 두 그릇이 서로를 부어내며 넘쳐버립니다.", "warning");
+        await wait(250);
+        await type(">> 정신 파장이 한계까지 부풀어, 누구의 감정인지조차 알 수 없게 뒤섞입니다.", "warning");
+        await wait(250);
+        await type(">> 호흡이 동기화되며 멈추기 직전입니다. 한쪽이 무너지면 다른 한쪽도 함께 끌려갑니다.", "warning");
+        await wait(300);
+        await type(">> \"...너인지, 나인지, 모르겠어.\"", "warning glitch");
+        await wait(400);
+        await type(">> 정신 마모 임계치 도달. 양쪽 모두 의식 소실 직전.", "warning glitch");
+        await type("-----------------------------------");
+
+        renderChoices([
+            { text: "[가이드 페어] 서로의 손을 맞잡고 역공명으로 진정", isEmergency: true },
+            { text: "[가이드 페어] 이마를 맞대고 — 호흡을 다시 분리", isEmergency: true },
+            { text: "[SYSTEM] 하모니 책임자 호출 — 강제 분리 및 의무실 이송", isEmergency: true }
+        ], async (opt) => {
+            document.getElementById('choice-area').innerHTML = "";
+            isTyping = true;
+            if (opt.text.includes("맞잡고")) {
+                document.body.classList.add('stage-calming');
+                document.getElementById('calming-layer').classList.add('calming-effect');
+                await type(">> 두 가이드가 떨리는 손을 맞잡습니다. 손가락이 깍지로 얽힙니다.", "heal");
+                await wait(400);
+                await type(">> 한쪽의 파장이 다른 한쪽 안으로 천천히 흘러들어가, 뒤섞였던 감정이 제자리를 찾기 시작합니다.", "heal");
+                await wait(400);
+                await type(">> 같은 박자로 쉬던 호흡이 — 두 사람의 것으로 분리되어 흐릅니다.", "heal");
+                triggerHealEffect();
+            } else if (opt.text.includes("이마")) {
+                document.body.classList.add('stage-calming');
+                document.getElementById('calming-layer').classList.add('calming-effect');
+                await type(">> 두 가이드가 무릎을 꿇은 채 서로의 이마를 맞댑니다. 가장 가까운 거리.", "heal");
+                await wait(400);
+                await type(">> 호흡 하나하나를 의식적으로 어긋나게 합니다. 들이쉴 때 너는 내쉬도록.", "heal");
+                await wait(400);
+                await type(">> 동기화에서 벗어난 박자 속에서 두 사람의 자아가 다시 또렷해집니다.", "heal");
+                triggerHealEffect();
+            } else {
+                await type(">> [SYSTEM] 하모니 책임자 도착. 두 가이드를 강제 분리, 각자의 의무실로 이송됩니다.", "system-msg");
+                await wait(350);
+                await type(">> 한 명이 다른 한 명을 향해 손을 뻗지만 닿지 못합니다.", "system-msg");
+                await wait(350);
+                await type(">> 향후 며칠 간 동반 임무가 제한됩니다. 거리두기 처분.", "system-msg");
+            }
+            setTimeout(() => { isTyping = false; resetContamination(true); }, 3000);
+        });
+        return;
+    }
+}
+
+async function triggerBerserkCalming(s, g) {
+    document.body.classList.add('stage-calming');
+    document.getElementById('calming-layer').classList.add('calming-effect');
+
+    await type(`>> [심층 가이딩 개시] 가이드 ${g.name}이(가) 폭주하는 ${s.name}에게 거리를 좁힙니다.`, "normal");
+    await wait(350);
+    await type(">> 무장 요원들이 만류하지만 멈추지 않습니다. 직접 손이 닿는 거리까지 들어갑니다.", "normal");
+    await wait(350);
+    await type(`>> 떨리는 손이 ${s.name}의 뺨을 감싸쥐고, 곧이어 점막 접촉이 시작됩니다.`, "normal");
+    await wait(400);
+    await type(">> 두 사람의 파장이 거칠게 충돌하다, 천천히 한 줄기로 얽혀들기 시작합니다.", "heal");
+    await wait(400);
+
+    // 속성별 진정 묘사
+    const flavor = CALMING_FLAVOR[s.elem] || CALMING_FLAVOR.NONE;
+    await type(flavor, "heal");
+    await wait(450);
+
+    await type(">> 폭주의 격류가 가이드의 안식 안에서 천천히 잦아듭니다. 거친 호흡이 점점 고르게 풀어집니다.", "heal");
+    await wait(400);
+    await type(">> 핏발 섰던 눈이 천천히 가라앉으며, 흩어졌던 의식의 조각이 제자리를 찾아갑니다.", "heal");
+    await wait(450);
+    await type(`>> ${s.name}의 손이 ${g.name}의 옷자락을 — 떨면서도 단단하게 — 움켜쥡니다.`, "heal");
+    await wait(400);
+    await type(">> 더는 짐승이 아닙니다. 사람의 호흡으로 돌아왔습니다.", "heal");
+    triggerHealEffect();
+
+    setTimeout(async () => {
+        await type("-----------------------------------");
+        await type(`>> [PROTOCOL_END] ${s.name}의 의식이 완전히 돌아왔습니다. 폭주가 진압되었습니다.`, "system-msg");
+        await wait(300);
+        await type(`>> 두 사람은 잠시 — 누구도 끼어들 수 없는 거리에서 — 서로를 끌어안고 있습니다.`, "system-msg");
+        contamLevel = 40; currentPhase = 0;
+        await updateContamination(0);
+        isBerserk = false;
+        document.getElementById('capture').classList.remove('critical-error', 'extreme-alert');
+        document.getElementById('threat-lv').innerText = "STANDBY";
+        document.getElementById('core-stat').innerText = "STABLE";
+
+        // 진정 후 다음 미션 버튼
+        const nextBtn = document.createElement("button");
+        nextBtn.className = "hud-btn";
+        nextBtn.style.marginTop = "15px";
+        nextBtn.innerText = "▶ NEXT_PROTOCOL";
+        nextBtn.onclick = startMission;
+        document.getElementById('choice-area').appendChild(nextBtn);
+    }, 4200);
+}
+
+function resetContamination(isAuto = false) {
+    if (isAuto || confirm("긴급 안정화 — 가이딩 필요 수치를 0%로 초기화하시겠습니까?")) {
+        contamLevel = 0; currentPhase = 0;
+        const fill = document.getElementById('contam-fill');
+        const val = document.getElementById('contam-val');
+        fill.style.width = '0%';
+        fill.style.background = "var(--sys-main)";
+        fill.style.boxShadow = "0 0 15px var(--sys-main)";
+        val.innerText = '0%';
+        isBerserk = false;
+        document.getElementById('capture').classList.remove('low-noise', 'mid-noise', 'critical-error', 'extreme-alert', 'heal-flash');
+        document.body.classList.remove('stage-calming');
+        document.getElementById('calming-layer').classList.remove('calming-effect');
+        document.getElementById('core-stat').innerText = "STABLE";
+        if (!isAuto) type(">> [STABILIZE] 시스템 정상화. 가이딩 필요 수치 0% 복귀.", "heal");
+    }
+}
+
+// ====================================================
+// ============ ARCH 미션 데이터베이스 (10) ============
+// ====================================================
+const missionDB = [
+    // ───── 01. 전술 섬멸 ─────
+    {
+        location: "센트럴 코어 외곽 / 제4 해상 구역 (괴수 군락)",
+        threatId: "ARCH-OPR-Δ41",
+        threat: "S-CLASS",
+        desc: "괴수 군락이 부유 도시 외곽 해상에서 동시다발 출현. 본부 방어선까지 6.4km 잔여.",
+        phase1: "[BRIEFING] 군락이 본부 외벽을 향해 일제히 돌진 중입니다. 초기 전술을 선택하십시오.",
+        choices: [
+            {
+                text: "[센티넬] 능력 과부하 — 광역 섬멸 발동",
+                sentinelOnly: true,
+                phase2: "한계 출력을 강제로 끌어올려 반경 800m를 일소합니다. 핏줄이 부풀어 오르고 파장이 튀어오릅니다.",
+                subChoices: [
+                    { text: "[가이드] 등 뒤에서 안아 들이며 점막 접촉 가이딩", guideOnly: true, result: ">> 두 사람의 호흡이 겹치고, 폭주 직전이던 파장이 거짓말처럼 가라앉습니다. 군락은 흔적도 없이 사라졌습니다.", warn: false, contam: -35 },
+                    { text: "[센티넬] 가이드 없이 억제제 자가 주입 — 강행 돌파", result: ">> 임무는 완수했으나 신경계가 비명을 지릅니다. 입가에서 검은 피가 흐릅니다.", warn: true, contam: 25 },
+                    { text: "[페어] 사이에서 손을 맞잡고 출력을 절제", result: ">> 절제된 파장이 정밀하게 적을 가릅니다. 페어의 손바닥에 화상 같은 잔열이 남습니다.", warn: false, contam: 5 }
+                ]
+            },
+            {
+                text: "[가이드] 광역 보호막 전개 + 파장 정밀 지원",
+                guideOnly: true,
+                phase2: "전장 위로 새하얀 보호막이 펼쳐집니다. 파편 한 조각도 본부로 닿지 않습니다.",
+                subChoices: [
+                    { text: "[페어 연계] 손을 맞잡고 싱크로율 극대화 후 정밀 타격", result: ">> 두 사람의 파장이 한 줄로 묶이며 결정타가 작렬합니다. 모든 군락이 무너졌습니다.", warn: false, contam: -20 },
+                    { text: "[가이드] 보호막에 모든 출력을 쏟아부음 — 정신 출혈", result: ">> 코에서 가는 핏줄기가 흐릅니다. 임무는 완수, 그러나 가이드가 의식을 잃기 직전입니다.", warn: true, contam: 30 },
+                    { text: "[속성: 얼음] 보호막을 빙벽으로 변환 — 반사 피해 유도", result: ">> 거대한 빙벽이 솟구치고 괴수들이 그 위에서 산산이 부서집니다.", warn: false, contam: -10 }
+                ]
+            },
+            {
+                text: "[가이드×가이드] 이중 보호막 / 이중 정화 파장 동시 전개",
+                dualGuideOnly: true,
+                phase2: "두 가이드가 등을 맞대고 동시에 파장을 방출합니다. 본부 외벽 전체가 빛나는 막에 휘감깁니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 손가락을 깍지 끼고 공명 강화", result: ">> 두 사람의 파장이 한 점에 모여 영역 전체를 정화합니다. 괴수들이 스스로 무너집니다.", warn: false, contam: -25 },
+                    { text: "[GG-EXCLUSIVE] 외부 센티넬에 동시 원격 버프 전달", result: ">> 멀리서 출동한 뱅가드 [발할라]가 평소의 2배 출력을 발휘하여 군락을 박살냅니다.", warn: false, contam: -5 },
+                    { text: "[변수] 보호막에 무리가 가며 한쪽 가이드의 정신이 흔들림", result: ">> 한 사람이 무릎을 꿇고, 다른 한 사람이 즉시 어깨를 받칩니다. 위태로운 줄타기.", warn: true, contam: 20 }
+                ]
+            },
+            {
+                text: "[센티넬×센티넬] 등을 맞대고 동시 광역 능력 발동",
+                dualSentinelOnly: true,
+                phase2: "가이드 부재. 두 센티넬이 서로의 등을 의지한 채 능력을 풀어놓습니다. 위험합니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 속성 충돌을 역이용 — 폭발적 연쇄 반응", result: ">> 두 속성이 부딪히며 거대한 파장 폭발이 일어납니다. 군락은 전멸. 두 사람도 휘청입니다.", warn: true, contam: 35 },
+                    { text: "[SS-EXCLUSIVE] 서로의 손목을 잡고 출력을 동기화", result: ">> 가이드 없이도 동기화에 성공. 그러나 두 사람의 신경계가 동시에 마모됩니다.", warn: true, contam: 28 },
+                    { text: "[SYSTEM] 후방에서 하모니 책임자가 원격 가이딩 시도", result: ">> 미약하지만 안정 파장이 흘러들어옵니다. 가이드의 빈자리가 절실하게 느껴집니다.", warn: false, contam: 12 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 02. 코드 레드 ─────
+    {
+        location: "센트럴 코어 / 관제탑 (코드 레드 발령)",
+        threatId: "ARCH-CR-001",
+        threat: "CODE_RED",
+        desc: "본부 사이렌이 전 구역에 울려퍼졌습니다. 미확인 침입자가 관제탑 외벽을 기어오르고 있습니다.",
+        phase1: "[CODE_RED] 브리핑은 없습니다. 즉시 대응하십시오.",
+        choices: [
+            {
+                text: "[페어 전원] 무장 후 관제탑 진입 — 최단 경로 돌파",
+                phase2: "엘리베이터가 차단되어 비상 계단으로 18층을 강행 돌파합니다. 침입자의 정체가 보이기 시작합니다.",
+                subChoices: [
+                    { text: "[센티넬] 정체 — 타락 센티넬임을 확인. 즉시 제압", sentinelOnly: true, result: ">> 익숙한 얼굴이 적이 되어 있습니다. 망설임은 사치입니다. 단번에 제압했습니다.", warn: false, contam: 15 },
+                    { text: "[가이드] 정신 파장으로 침입자의 의식 잠식 시도", guideOnly: true, result: ">> 가이드가 무방비로 다가가 침입자의 관자놀이를 짚습니다. 의식이 무너지며 침입자가 쓰러집니다.", warn: false, contam: -10 },
+                    { text: "[페어 연계] 등 뒤에서 가이드가 버프, 정면은 센티넬이 맡음", result: ">> 한 박자도 어긋나지 않는 호흡. 가장 ARCH다운 전투입니다.", warn: false, contam: 0 }
+                ]
+            },
+            {
+                text: "[가이드] 관제탑 직원들 우선 대피 유도 — 후방 안정화",
+                guideOnly: true,
+                phase2: "겁에 질린 일반 직원들을 가이드가 끌어안듯 진정시킵니다. 그동안 외벽의 침입자는 계속 올라옵니다.",
+                subChoices: [
+                    { text: "[속성: 바람] 가이드가 가벼운 비행 버프로 대피 가속화", result: ">> 직원들이 가벼운 발걸음으로 비상구로 빠져나갑니다. 시간을 벌었습니다.", warn: false, contam: -5 },
+                    { text: "[변수] 침입자가 직원 한 명을 인질로 잡음", result: ">> 가이드의 눈빛이 식습니다. 협상 카드를 잃은 적이 도리어 압박을 받습니다.", warn: true, contam: 20 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드가 동시에 영역 가이딩 — 본부 전체 안정화",
+                dualGuideOnly: true,
+                phase2: "두 가이드가 관제탑 중앙에서 마주 앉아 손을 모읍니다. 본부 전체로 안식의 파장이 퍼집니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 출동한 모든 센티넬에게 광역 버프", result: ">> 본부의 모든 센티넬이 일제히 출력을 끌어올립니다. 침입자는 순식간에 진압되었습니다.", warn: false, contam: -25 },
+                    { text: "[GG-EXCLUSIVE] 침입자의 광기를 직접 정화 시도 — 가이드 한 명이 환각 침투", result: ">> 한 가이드가 적의 정신 깊숙이 들어가 광기의 핵을 끌어냅니다. 다른 가이드가 손을 꼭 붙듭니다.", warn: true, contam: 18 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 두 센티넬이 협공 — 가이드 없이 강행",
+                dualSentinelOnly: true,
+                phase2: "지원 없이 두 센티넬이 침입자에게 달려듭니다. 본능적인 움직임만 남았습니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 등을 맞대고 360도 사각 제거", result: ">> 침입자가 어디로 도망쳐도 둘 중 한 사람의 사정거리 안입니다. 깔끔한 마무리.", warn: false, contam: 18 },
+                    { text: "[변수] 침입자의 폭주 유발 페로몬 — 둘 모두 오염도 급증", result: ">> 적이 마지막 카드를 꺼냈습니다. 두 센티넬의 눈이 동시에 충혈됩니다.", warn: true, contam: 38 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 03. 비상 안정화실 (STAB) ─────
+    {
+        location: "비상 안정화실 (STAB) / 격리 챔버 B-7",
+        threatId: "ARCH-STAB-447",
+        threat: "INTERNAL",
+        desc: "센티넬의 오염도가 임계점을 돌파, 격리실로 강제 호송되었습니다. 벽에는 이전 폭주의 흔적이 남아 있습니다.",
+        phase1: "[격리 챔버] 결박된 채 가쁜 숨을 몰아쉬는 요원. 차가운 백색 조명이 신경을 긁습니다.",
+        choices: [
+            {
+                text: "[가이드] 결박을 풀고 맨몸으로 끌어안아 체온 공유",
+                guideOnly: true,
+                phase2: "차가운 챔버에 첫 온기가 닿자 결박당한 요원이 짐승처럼 가이드를 끌어안습니다.",
+                subChoices: [
+                    { text: "[심층] 밤새 이어지는 농밀한 가이딩 — 점막 접촉 포함", result: ">> 한계까지 치솟던 임계치가 새벽이 올 즈음 거짓말처럼 가라앉습니다. 두 사람 모두 완전히 녹아내렸습니다.", warn: false, contam: -55 },
+                    { text: "[중도] 폭력적인 손길에 가이드가 멍이 듦 — 그래도 끝까지 안아줌", result: ">> 진정은 되었으나 가이드의 목에 검붉은 자국이 남았습니다. 다음 날 후회의 눈물이 흐를 것입니다.", warn: true, contam: -20 },
+                    { text: "[속성: 물] 가이드 — 정화 능력으로 부작용까지 씻어냄", result: ">> 깨끗한 물줄기 같은 파장이 흘러들어 약물 부작용까지 녹입니다. 가장 완벽한 회복.", warn: false, contam: -50 }
+                ]
+            },
+            {
+                text: "[가이드] 거리를 두고 원거리 파장만 방사",
+                guideOnly: true,
+                phase2: "차폐막 너머에서 파장만 보냅니다. 약물 부작용이 강해 효과가 미미합니다.",
+                subChoices: [
+                    { text: "[변수] 결박을 끊어내고 차폐막을 부수려 함", result: ">> 두꺼운 강화 유리에 금이 갑니다. 무장 요원들이 집결하기 시작합니다.", warn: true, contam: 28 },
+                    { text: "[가이드] 결국 챔버 안으로 직접 진입", result: ">> 망설임을 버리고 안으로 들어갑니다. 첫 접촉의 순간 모든 것이 진정됩니다.", warn: false, contam: -30 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드가 양쪽에서 동시에 가이딩",
+                dualGuideOnly: true,
+                phase2: "*[주의: 본 챔버에는 결박된 센티넬이 아닌, 가이딩 중독으로 무너진 가이드가 수용되어 있습니다.]* 두 가이드가 양옆에서 손을 잡습니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 서로의 파장을 흘려보내며 균형 회복", result: ">> 무너졌던 가이드가 두 손을 양쪽 모두 꽉 쥐며 흐느낍니다. 천천히 자신을 되찾아갑니다.", warn: false, contam: -45 },
+                    { text: "[GG-EXCLUSIVE] 한 가이드는 머리를, 한 가이드는 등을 어루만짐", result: ">> 가장 인간적인 위로. 챔버 안이 처음으로 따뜻해집니다.", warn: false, contam: -35 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 동료 센티넬이 결박된 자에게 접근",
+                dualSentinelOnly: true,
+                phase2: "가이드는 없습니다. 동료 센티넬이 챔버에 들어가 마주 섭니다. 위험합니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 같은 센티넬로서의 압도 — 폭주를 폭주로 누름", result: ">> 더 강한 폭주 직전의 파장으로 상대를 짓누릅니다. 굴복한 채 잠시 잠잠해지지만 임시방편입니다.", warn: true, contam: 22 },
+                    { text: "[SS-EXCLUSIVE] 자신의 손목을 그어 — 통증으로 정신 환기 유도", result: ">> 피 냄새에 결박된 자가 정신을 차립니다. 그러나 두 사람 모두 의무실 행이 결정됩니다.", warn: true, contam: 15 }
+                ]
+            },
+            {
+                text: "[SYSTEM] 가이드 없이 억제제 과다 투여 — 강제 진압",
+                phase2: "혈관이 타들어가는 고통. 환각은 사라지지 않고 오히려 짙어집니다.",
+                subChoices: [
+                    { text: "고통에 몸부림치며 기물을 모조리 파괴", result: ">> 피투성이가 된 채 헐떡입니다. 임계치가 걷잡을 수 없이 치솟습니다.", warn: true, contam: 42 },
+                    { text: "스스로 벽에 머리를 박아 기절 시도", result: ">> 의식을 잃었습니다. 그러나 체내 파장이 심각하게 꼬여 생명이 위독합니다.", warn: true, contam: 30 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 04. 하늘정원 정찰 ─────
+    {
+        location: "하늘정원 / 부유섬 고대 신전 폐허",
+        threatId: "ARCH-RECON-S2",
+        threat: "B-CLASS",
+        desc: "이카로스가 발견한 비밀 부유섬에서 미확인 파장이 검출되었습니다. 정찰 임무가 하달되었습니다.",
+        phase1: "[정찰 시작] 신전 폐허에서 흐릿한 노래 소리가 들립니다. 무언가가 부르고 있습니다.",
+        choices: [
+            {
+                text: "[센티넬] 청각을 극도로 끌어올려 노래의 진원지 파악",
+                sentinelOnly: true,
+                phase2: "신경이 곤두서며 청각 신경 자체가 비명을 지릅니다. 노래는 신전 지하에서 흘러나옵니다.",
+                subChoices: [
+                    { text: "[가이드] 귀를 손바닥으로 부드럽게 막아 감각 보호", guideOnly: true, result: ">> 가이드의 따뜻한 손바닥이 닿자 거짓말처럼 신경이 안정됩니다. 진원지는 정확히 파악했습니다.", warn: false, contam: -15 },
+                    { text: "[속성: 번개] 청각 신호를 전자기 신호로 치환해 분석", result: ">> 노래는 고대의 가이드 파장. 누군가 봉인되어 있는 듯합니다.", warn: false, contam: 8 }
+                ]
+            },
+            {
+                text: "[가이드] 자신의 파장을 신전에 흘려보내 — 공명 응답 확인",
+                guideOnly: true,
+                phase2: "가이드의 파장이 신전의 벽돌 하나하나에 스며들기 시작합니다. 무언가가 응답합니다.",
+                subChoices: [
+                    { text: "[안정 응답] 봉인된 고대 가이드의 잔류 파장과 공명 성공", result: ">> 신전 깊은 곳에서 부드러운 파장이 흘러나옵니다. 임무 완수, 모두가 진정됩니다.", warn: false, contam: -20 },
+                    { text: "[위협 응답] 봉인된 것이 적대적인 존재였음", result: ">> 신전 바닥이 갈라지며 무언가가 깨어납니다. 즉각 후퇴해야 합니다.", warn: true, contam: 25 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드가 신전 양 끝에서 동시에 공명 — 위치 삼각측량",
+                dualGuideOnly: true,
+                phase2: "두 가이드의 파장이 신전 전체를 격자처럼 훑습니다. 진원지가 한 점으로 좁혀집니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 정확한 위치 확인 후 본부에 안전한 회수 요청", result: ">> 작전은 깔끔하게 완료. 두 가이드의 협업이 사령부에 보고됩니다.", warn: false, contam: -10 },
+                    { text: "[GG-EXCLUSIVE] 직접 봉인을 해제 — 잔류 가이드 영혼 정화", result: ">> 두 가이드가 함께 손을 모아 봉인을 풀어냅니다. 고대의 영혼이 평온하게 흩어집니다.", warn: false, contam: -30 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 두 센티넬이 신전 양쪽 지붕 위에서 망보며 진입",
+                dualSentinelOnly: true,
+                phase2: "가이드 없는 정찰. 두 센티넬은 본능적으로 서로의 사각을 메꾸기 시작합니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 신전 깊은 곳에서 동시 능력 발동 — 봉인을 파괴", result: ">> 부서진 봉인 안에서 흘러나온 파장이 두 센티넬에게 동시에 흡수됩니다. 위험한 흡수.", warn: true, contam: 32 },
+                    { text: "[SS-EXCLUSIVE] 그냥 후퇴 — 보고 후 가이드 동반 재진입 권고", result: ">> 가장 합리적인 판단. 둘 다 살아 돌아왔습니다.", warn: false, contam: 5 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 05. 특별통제 훈련장 / 싱크로율 테스트 ─────
+    {
+        location: "특별통제 훈련장 / 메인 돔",
+        threatId: "ARCH-SYNC-V12",
+        threat: "TRAINING",
+        desc: "하모니 부서 주관 정기 싱크로율 측정. VIP 참관석에는 익명의 군주 한 명이 앉아 있습니다.",
+        phase1: "[테스트 개시] 지형이 변형되며 모의 전장이 펼쳐집니다. 데이터가 실시간으로 기록됩니다.",
+        choices: [
+            {
+                text: "[페어] 손을 맞잡고 표준 가이딩 → 모의 적 제압",
+                phase2: "교본대로의 가이딩. 안정적이고 무난한 수치가 측정됩니다.",
+                subChoices: [
+                    { text: "[안정] 70~75% 싱크로율 달성 — 엘리트 기준 통과", result: ">> 무난한 합격. 군주는 별다른 반응이 없으나 데이터에는 만족스러운 흔적이 남았습니다.", warn: false, contam: -8 },
+                    { text: "[보수적] 65% — 평균치. 약점이 발견됨", result: ">> 책임자가 추가 상담을 권고합니다. 두 사람 모두 그 의미를 알고 있습니다.", warn: true, contam: 5 }
+                ]
+            },
+            {
+                text: "[페어] 가이드가 점막 접촉(키스)을 강행 — 심층 동기화 시도",
+                guideOnly: true,
+                phase2: "참관석이 술렁입니다. 군주조차 자세를 바꿉니다. 두 사람의 파장이 폭발적으로 결합합니다.",
+                subChoices: [
+                    { text: "[전설] 92% 도달 — 각인 가능성 확인", result: ">> 살아있는 신화의 탄생. 두 사람은 이제 서로에게서 벗어날 수 없습니다.", warn: false, contam: -30 },
+                    { text: "[과부하] 95% 도달 후 가이드 의식 소실", result: ">> 너무 강했습니다. 가이드가 무너지며 센티넬이 비명을 지르며 끌어안습니다.", warn: true, contam: 20 },
+                    { text: "[중단] 군주의 명령으로 측정 강제 종료", result: ">> 데이터가 위험 수치를 기록했습니다. 두 사람은 별실로 끌려갑니다.", warn: true, contam: 15 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드의 상호 공명률 측정",
+                dualGuideOnly: true,
+                phase2: "흔치 않은 시험. 두 가이드가 마주 앉아 파장을 교환합니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 88% 달성 — 하모니 부서 신규 케이스로 등록", result: ">> 가이드 간에도 이만큼의 공명이 가능하다는 사실에 책임자가 흥미를 보입니다.", warn: false, contam: -15 },
+                    { text: "[GG-EXCLUSIVE] 두 가이드 모두 가이딩 중독 증상 발현", result: ">> 서로에게서 손을 떼지 못합니다. 책임자가 강제로 떼어놓습니다.", warn: true, contam: 18 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 두 센티넬의 능력 동기화 측정",
+                dualSentinelOnly: true,
+                phase2: "가이드 없이도 가능한가? 시험적인 측정이 시작됩니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 속성이 상극일 경우 — 폭발적 시너지 측정 실패", result: ">> 서로의 파장이 충돌하며 측정기가 박살납니다. 양쪽 모두 코피.", warn: true, contam: 28 },
+                    { text: "[SS-EXCLUSIVE] 속성이 동일할 경우 — 출력 2배 확인", result: ">> 같은 속성끼리의 위험한 결합. 군주가 메모를 시작합니다.", warn: true, contam: 12 }
+                ]
+            },
+            {
+                text: "[OVERRIDE] 일부러 측정값을 낮춤 — 페어 분리를 막기 위한 위조",
+                phase2: "기관의 평가는 곧 페어의 운명을 결정합니다. 둘은 떨어지고 싶지 않습니다.",
+                subChoices: [
+                    { text: "[성공] 책임자가 의심 — 그러나 묵인", result: ">> 책임자는 모든 것을 알고도 모른 척합니다. 페어는 유지됩니다.", warn: false, contam: 0 },
+                    { text: "[실패] 적발 — 두 사람 모두 정직 처분", result: ">> 데이터 위조가 발각되었습니다. 향후 임무 배정에 불이익이 있을 것입니다.", warn: true, contam: 25 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 06. 하모니 상담실 ─────
+    {
+        location: "하모니 심리상담실 / 개별 룸 09호",
+        threatId: "ARCH-HARM-09",
+        threat: "INTERNAL",
+        desc: "최근 페어 간 파장 충돌이 감지되어 정기 상담이 강제 배정되었습니다. 책임자가 두 사람을 바라봅니다.",
+        phase1: "[상담 개시] 맞은편 소파의 거리가 평소보다 멀게 느껴집니다.",
+        choices: [
+            {
+                text: "[페어] 솔직하게 갈등의 원인을 털어놓음",
+                phase2: "한 사람이 먼저 입을 엽니다. 다른 한 사람이 시선을 피하지 않고 듣습니다.",
+                subChoices: [
+                    { text: "[해소] 서로 손을 잡으며 화해 — 책임자가 미소", result: ">> 가장 ARCH다운 결말. 파장이 다시 안정 궤도로 돌아옵니다.", warn: false, contam: -25 },
+                    { text: "[악화] 한쪽이 일어서서 방을 나가버림", result: ">> 책임자가 한숨을 쉽니다. 며칠 간 임무에서 분리됩니다.", warn: true, contam: 20 }
+                ]
+            },
+            {
+                text: "[페어] 가이드가 센티넬의 손을 잡고 직접 가이딩 시작 (상담 도중)",
+                guideOnly: true,
+                phase2: "책임자가 굳이 말리지 않습니다. 가장 빠른 갈등 해결책이기 때문입니다.",
+                subChoices: [
+                    { text: "[심층] 점막 접촉으로 즉시 안정 — 책임자 묵묵히 퇴장", result: ">> 갈등의 본질은 결국 가이딩 부족이었습니다. 두 사람만의 시간이 됩니다.", warn: false, contam: -40 },
+                    { text: "[표면] 손을 잡는 정도로 멈춤 — 상담은 계속됨", result: ">> 가이딩 의존을 자제하는 모습. 책임자가 흡족해 합니다.", warn: false, contam: -15 }
+                ]
+            },
+            {
+                text: "[책임자] 권유 — 일시적 페어 교체 제안",
+                phase2: "두 사람의 얼굴이 동시에 굳습니다. 가장 두려워하던 말입니다.",
+                subChoices: [
+                    { text: "[격렬한 반대] 두 사람 모두 강하게 거부 — 책임자가 놀람", result: ">> 책임자가 메모를 멈추고 두 사람을 바라봅니다. \"각인이 시작된 듯합니다.\"", warn: false, contam: 8 },
+                    { text: "[수용] 한쪽이 침묵으로 동의 — 다른 한쪽이 깨짐", result: ">> 페어의 한쪽이 자리에서 일어나며 의자를 차버립니다. 사태가 악화됩니다.", warn: true, contam: 35 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드의 공동 의존 상담 (가이딩 중독 사례)",
+                dualGuideOnly: true,
+                phase2: "흔치 않은 케이스. 두 가이드가 서로에게 과의존하는 양상이 관찰됩니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 책임자의 권고 수용 — 서로 일주일 거리두기", result: ">> 두 사람 다 손을 꼭 쥡니다. 그러나 시도해보기로 합니다.", warn: false, contam: -10 },
+                    { text: "[GG-EXCLUSIVE] 거리두기 거부 — 공식 페어 등록 요청", result: ">> 책임자가 길게 한숨을 쉬더니, 결국 서명합니다.", warn: false, contam: -20 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 가이드 부재로 인한 상호 마모 호소",
+                dualSentinelOnly: true,
+                phase2: "두 센티넬이 동시에 책임자에게 가이드 배정을 호소합니다. 자존심을 버린 외침입니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 책임자 — 임시 가이드 매칭 약속", result: ">> 며칠 안에 매칭이 이루어질 것입니다. 두 사람의 어깨가 가벼워집니다.", warn: false, contam: -12 },
+                    { text: "[SS-EXCLUSIVE] 거절 — 가이드 자원 부족 통보", result: ">> 두 사람의 표정이 굳습니다. 임무 강도를 낮추는 것 외에는 방법이 없습니다.", warn: true, contam: 22 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 07. 폭주 개체 진압 ─────
+    {
+        location: "도시 외곽 / 폐기된 지하철 노선 (폭주 개체 발견)",
+        threatId: "ARCH-RAMP-X7",
+        threat: "A-CLASS",
+        desc: "행방불명되었던 동료 센티넬이 폭주 상태로 발견되었습니다. 진압이 아닌 구조 임무입니다.",
+        phase1: "[조우] 어둠 속에서 익숙한 실루엣. 그러나 눈빛이 인간의 것이 아닙니다.",
+        choices: [
+            {
+                text: "[가이드] 무방비로 다가가 이름을 부름",
+                guideOnly: true,
+                phase2: "가장 위험하고, 가장 효과적인 접근. 가이드가 손을 천천히 뻗습니다.",
+                subChoices: [
+                    { text: "[안식] 익숙한 파장에 폭주체가 무릎을 꿇음 — 오열", result: ">> 짐승 같던 존재가 어린아이처럼 가이드의 옷자락을 붙듭니다. 구조 성공.", warn: false, contam: -35 },
+                    { text: "[위기] 폭주체가 가이드의 목을 잡아챔", result: ">> 숨이 끊어지기 직전, 페어의 비명이 울려퍼지며 폭주체의 손이 풀립니다.", warn: true, contam: 30 }
+                ]
+            },
+            {
+                text: "[센티넬] 같은 속성으로 출력을 맞춰 충돌 — 정신을 깨움",
+                sentinelOnly: true,
+                phase2: "고통으로 의식을 환기시키는 방법. 위험합니다.",
+                subChoices: [
+                    { text: "[속성 일치] 충돌하며 한순간 의식이 돌아옴", result: ">> 폭주체가 흠칫 멈추며 \"...왜 여기 있어\"라고 중얼거립니다. 구조 가능.", warn: false, contam: 15 },
+                    { text: "[속성 상극] 폭발적 충돌 — 지하철 천장 붕괴", result: ">> 두 사람 모두 파편에 깔립니다. 도착한 구조팀이 두 사람을 동시에 끌어냅니다.", warn: true, contam: 38 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드가 양쪽에서 동시 가이딩 — 폭주체 회수",
+                dualGuideOnly: true,
+                phase2: "센티넬이 없는 페어가 폭주체에 접근합니다. 위험하지만, 두 가이드의 파장은 두 배입니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 양옆에서 손을 잡아 — 동시에 파장 흘려보냄", result: ">> 폭주체가 두 손을 잡힌 채 무너집니다. 흔치 않은 구조 성공 사례.", warn: false, contam: -28 },
+                    { text: "[GG-EXCLUSIVE] 한 가이드가 미끼, 다른 가이드가 후방 강타", result: ">> 다소 비정한 방식이지만 폭주체는 의식을 잃고 무사히 회수됩니다.", warn: false, contam: 5 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 두 센티넬이 협공 — 폭주체 강제 제압",
+                dualSentinelOnly: true,
+                phase2: "가이드가 없는 진압은 항상 거칠어집니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 동시에 능력 발동 — 폭주체 기절", result: ">> 의식을 잃은 동료를 두 센티넬이 어깨에 짊어집니다. 침묵 속 귀환.", warn: true, contam: 25 },
+                    { text: "[SS-EXCLUSIVE] 한 명이 폭주체에게 흡수되며 동반 폭주 직전", result: ">> 가이드의 부재가 치명적이 됩니다. 다른 한 명이 비명을 지릅니다.", warn: true, contam: 45 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 08. 라운지 (일상) ─────
+    {
+        location: "ARCH 본부 / 라운지 (오후 4시)",
+        threatId: "ARCH-DAILY-04",
+        threat: "STANDBY",
+        desc: "임무 후 휴식 시간. 햇빛이 식물 사이로 부서져 내립니다. 그러나 누군가의 파장이 미세하게 흔들리고 있습니다.",
+        phase1: "[일상의 균열] 라운지 구석. 평소보다 말이 적어진 페어 중 한 명.",
+        choices: [
+            {
+                text: "[먼저 다가가서] 머리를 부드럽게 쓰다듬으며 \"왜 그래\"라고 물음",
+                phase2: "조용한 라운지. 가벼운 접촉만으로도 파장이 천천히 안정됩니다.",
+                subChoices: [
+                    { text: "[고백] 가이딩 중독 증상을 털어놓음 — 도움을 요청", result: ">> 가장 두려웠던 단어가 입 밖에 나왔습니다. 페어가 묵묵히 안아줍니다.", warn: false, contam: -25 },
+                    { text: "[감춤] 별일 아니라며 손을 떼고 일어남", result: ">> 등을 돌리는 모습이 평소보다 차갑습니다. 무언가 곪고 있습니다.", warn: true, contam: 15 }
+                ]
+            },
+            {
+                text: "[가이드] 가벼운 마사지 가이딩 — 손목 안쪽에 손가락 가볍게 얹기",
+                guideOnly: true,
+                phase2: "임무 외 사적인 가이딩. 공식적이지 않지만 가장 부드러운 회복.",
+                subChoices: [
+                    { text: "[평온] 30분 동안 말없이 가이딩 — 잠들어버림", result: ">> 페어의 무릎을 베고 잠든 모습이 평화롭습니다. 모든 것이 제자리를 찾았습니다.", warn: false, contam: -30 },
+                    { text: "[진전] 손목에서 점차 깊은 곳으로 — 점막 접촉으로 발전", result: ">> 라운지의 다른 요원들이 슬그머니 자리를 비켜줍니다. 모두가 이해합니다.", warn: false, contam: -40 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드의 일상적 공명 — 등을 맞대고 책 읽기",
+                dualGuideOnly: true,
+                phase2: "전투용은 아닌, 가장 부드러운 공명. 햇빛 속의 평화.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 한 시간 후 동시에 가벼운 잠에 빠짐", result: ">> 책을 손에서 떨어뜨린 채 등을 맞댄 두 가이드. 다른 요원들이 조용히 담요를 덮어줍니다.", warn: false, contam: -20 },
+                    { text: "[GG-EXCLUSIVE] 손가락을 깍지 끼고 — 서로의 어깨에 머리를 기댐", result: ">> 가장 평화로운 페어. 라운지의 분위기 자체가 안정됩니다.", warn: false, contam: -25 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 두 센티넬이 옥상에서 함께 담배 — 침묵의 회복",
+                dualSentinelOnly: true,
+                phase2: "라운지가 답답해서 옥상으로 도망친 두 사람. 말 없이 나란히 앉습니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 어깨가 닿는 거리 — 천천히 호흡이 맞춰짐", result: ">> 말 한마디 없이도 파장이 안정됩니다. 센티넬 간의 침묵에는 그만한 힘이 있습니다.", warn: false, contam: -10 },
+                    { text: "[SS-EXCLUSIVE] 한 명이 다른 한 명의 어깨에 머리를 기댐", result: ">> 흔치 않은 약함의 표출. 다른 한 명이 굳이 거부하지 않습니다.", warn: false, contam: -18 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 09. 공명연구실 / 각인 실험 ─────
+    {
+        location: "공명연구실 / 투명 포드 챔버",
+        threatId: "ARCH-RES-IMP3",
+        threat: "INTERNAL",
+        desc: "각인 가능성 91% 이상으로 측정된 페어. 영구 각인 유도 실험에 자원했습니다.",
+        phase1: "[실험 개시] 투명 포드 안. 두 사람의 파장이 실시간으로 시각화되어 벽면에 흐릅니다.",
+        choices: [
+            {
+                text: "[페어] 마주 앉아 손을 맞잡고 — 표준 가이딩 심화 진행",
+                phase2: "벽면의 파장이 점차 한 줄기로 합쳐지기 시작합니다. 연구진이 숨을 죽입니다.",
+                subChoices: [
+                    { text: "[성공] 영구 각인 형성 — 두 사람의 운명이 묶임", result: ">> 두 사람의 파장이 영구히 하나의 패턴이 되었습니다. 이제 서로 없이는 살 수 없습니다.", warn: false, contam: -45 },
+                    { text: "[실패] 직전에 한쪽이 두려움으로 거부", result: ">> 포드가 정적에 잠깁니다. 한쪽이 손을 놓아버렸습니다. 다른 한쪽의 눈이 흔들립니다.", warn: true, contam: 30 }
+                ]
+            },
+            {
+                text: "[가이드] 모든 안전장치 무시 — 점막 접촉 강행",
+                guideOnly: true,
+                phase2: "연구진의 만류를 뿌리치고 가이드가 먼저 거리를 좁힙니다.",
+                subChoices: [
+                    { text: "[전설] 99% 도달 — 살아있는 신화 등극", result: ">> 두 사람의 파장이 같은 색이 되었습니다. ARCH 역사상 8번째 각인 페어.", warn: false, contam: -50 },
+                    { text: "[과부하] 가이드의 코에서 핏줄기가 — 그러나 멈추지 않음", result: ">> 한계까지 밀어붙입니다. 결국 각인은 형성되었으나 두 사람 모두 의무실 행.", warn: true, contam: 8 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드 간 — 이론상 불가능한 각인 시도",
+                dualGuideOnly: true,
+                phase2: "기존 이론을 뒤집는 실험. 연구진이 흥분합니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 새로운 형태의 공명 패턴 발견 — 학술적 가치 거대", result: ">> 가이드 간에도 다른 형태의 영구 결속이 가능함이 증명되었습니다. 새로운 역사.", warn: false, contam: -35 },
+                    { text: "[GG-EXCLUSIVE] 거부 반응 — 두 가이드의 파장 충돌", result: ">> 가이드의 본질은 받아들이는 것입니다. 두 받아들이는 자가 충돌하며 실험은 종료.", warn: true, contam: 28 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 두 센티넬 간 — 출력 결속 실험 (비공식 각인)",
+                dualSentinelOnly: true,
+                phase2: "가이드 없는 결속. 연구진은 매우 신중합니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 동기화 성공 — 새로운 형태의 페어 등록", result: ">> 가이드 없이도 형성 가능한 결속이 확인됩니다. 그러나 가이딩 의존도는 사라지지 않습니다.", warn: false, contam: 5 },
+                    { text: "[SS-EXCLUSIVE] 출력 폭발 — 포드 파괴", result: ">> 투명 포드가 박살나며 두 사람이 튕겨나옵니다. 큰 부상.", warn: true, contam: 40 }
+                ]
+            },
+            {
+                text: "[중단] 실험을 중지하고 — 둘이서만 평범한 시간을 보내기로 결정",
+                phase2: "각인은 운명입니다. 강요할 수 없습니다. 두 사람은 그냥 서로의 옆에 있기로 합니다.",
+                subChoices: [
+                    { text: "[일상] 라운지로 돌아가 차 한 잔 — 그게 가장 큰 가이딩", result: ">> 각인보다 깊은 신뢰. 두 사람의 파장이 가장 자연스러운 상태로 정리됩니다.", warn: false, contam: -20 }
+                ]
+            }
+        ]
+    },
+
+    // ───── 10. 타락 센티넬 추적 / 폐허 ─────
+    {
+        location: "구 문명 폐허 지대 / 타락 센티넬 거점",
+        threatId: "ARCH-COR-D9",
+        threat: "S-CLASS",
+        desc: "세뇌된 타락 센티넬 다수가 폐허에서 의식을 진행 중. 인질 — 행방불명된 가이드들.",
+        phase1: "[잠입] 타락한 동료들의 노래가 폐허를 메웁니다. 잘못 듣고 있으면 정신이 잠식됩니다.",
+        choices: [
+            {
+                text: "[가이드] 노래에 맞춰 역방향 파장 — 세뇌 차단",
+                guideOnly: true,
+                phase2: "가이드의 파장이 노래를 잘라냅니다. 그러나 타락 센티넬들이 일제히 시선을 돌립니다.",
+                subChoices: [
+                    { text: "[페어] 차단된 틈에 센티넬이 인질 구조 돌격", result: ">> 인질이었던 가이드들이 풀려납니다. 일부는 이미 세뇌되었지만, 대부분이 살아 있습니다.", warn: false, contam: -10 },
+                    { text: "[속성: 풀] 가이드 — 속박 필드로 적 전체 포박", result: ">> 폐허의 잡초가 일제히 자라며 타락 센티넬들을 옭아맵니다. 가이드의 코에서 피가 흐릅니다.", warn: true, contam: 18 }
+                ]
+            },
+            {
+                text: "[센티넬] 정면 돌파 — 광역 능력으로 의식 강제 중단",
+                sentinelOnly: true,
+                phase2: "노래의 한가운데로 뛰어들며 능력을 풀어놓습니다. 의식이 깨집니다.",
+                subChoices: [
+                    { text: "[가이드] 후방에서 즉각 안정화 — 노래 잔재 정화", guideOnly: true, result: ">> 페어의 완벽한 연계. 인질들이 안전하게 회수되고 타락 센티넬은 격리됩니다.", warn: false, contam: -8 },
+                    { text: "[변수] 타락 센티넬 중 한 명이 — 아는 얼굴", result: ">> 손이 멈춥니다. 그 순간 적의 일격이 옆구리를 가릅니다. 페어의 비명.", warn: true, contam: 30 }
+                ]
+            },
+            {
+                text: "[GG-EXCLUSIVE] 두 가이드가 — 인질 가이드들과 4중 공명 시도",
+                dualGuideOnly: true,
+                phase2: "흔치 않은 작전. 외부의 두 가이드가 인질 가이드들의 파장을 끌어올립니다.",
+                subChoices: [
+                    { text: "[GG-EXCLUSIVE] 인질 가이드들의 의식이 깨어남 — 자력 탈출", result: ">> 풀려난 가이드들이 자신을 인질로 잡았던 타락 센티넬들을 역으로 진정시키기 시작합니다.", warn: false, contam: -30 },
+                    { text: "[GG-EXCLUSIVE] 외부 두 가이드가 정신 출혈 — 그래도 끝까지 유지", result: ">> 코에서 흐르는 피를 닦지도 못한 채 파장을 유지합니다. 작전은 성공하지만 의식을 잃습니다.", warn: true, contam: 35 }
+                ]
+            },
+            {
+                text: "[SS-EXCLUSIVE] 두 센티넬이 — 노래에 잠식되지 않기 위해 서로의 손목을 묶음",
+                dualSentinelOnly: true,
+                phase2: "가이드 없이 세뇌 영역에 들어가는 미친 짓. 그러나 서로의 존재가 닻이 됩니다.",
+                subChoices: [
+                    { text: "[SS-EXCLUSIVE] 손목의 통증으로 정신 유지 — 적 전부 제압", result: ">> 무모하지만 효과적. 두 사람의 손목이 멍투성이가 된 채 작전 완수.", warn: true, contam: 22 },
+                    { text: "[SS-EXCLUSIVE] 한 명이 노래에 일부 잠식 — 다른 한 명이 끌어안고 후퇴", result: ">> 잠식된 동료를 끌어안고 폐허를 빠져나옵니다. 후방에서 뱅가드 [네메시스]가 마무리.", warn: true, contam: 28 }
+                ]
+            }
+        ]
+    }
+];
+
+// --- 페어 타입 기반 선택지 가용성 ---
+function isChoiceAvailable(opt, pair) {
+    // 페어 한정 옵션
+    if (opt.dualGuideOnly) return pair === 'GG';
+    if (opt.dualSentinelOnly) return pair === 'SS';
+    // 역할 한정 옵션
+    if (opt.sentinelOnly && pair === 'GG') return false;
+    if (opt.guideOnly && pair === 'SS') return false;
+    return true;
+}
+
+// --- 선택지 렌더링 ---
+function renderChoices(options, callback) {
+    if (isBerserk && !options[0]?.isEmergency) return;
+    const area = document.getElementById('choice-area');
+    area.innerHTML = "";
+
+    const pair = getPairType();
+    const row = document.createElement("div");
+    row.className = "choice-row";
+
+    // 페어 전용 옵션 표시 / 일반 옵션 잠금 표시 분리
+    options.forEach(opt => {
+        // 페어 한정인데 페어가 안 맞으면 — 잠금 표시
+        let unavailableReason = null;
+        if (opt.dualGuideOnly && pair !== 'GG') unavailableReason = "GG 전용";
+        else if (opt.dualSentinelOnly && pair !== 'SS') unavailableReason = "SS 전용";
+        else if (opt.sentinelOnly && pair === 'GG') unavailableReason = "센티넬 필요";
+        else if (opt.guideOnly && pair === 'SS') unavailableReason = "가이드 필요";
+
+        const btn = document.createElement("button");
+        btn.className = "choice-btn";
+
+        if (unavailableReason) {
+            btn.classList.add("locked");
+            btn.innerText = `🔒 [${unavailableReason}] ${opt.text}`;
+            btn.disabled = true;
+        } else if (contamLevel >= 85 && !opt.isEmergency) {
+            btn.classList.add("broken");
+            const t = opt.text;
+            btn.innerText = "▓▓ " + t.substring(2, t.length - 2) + " ▓▓";
+            btn.onclick = () => { if (!isTyping) callback(opt); };
+        } else if (opt.isEmergency) {
+            btn.classList.add("emergency");
+            btn.innerText = opt.text;
+            btn.onclick = () => { if (!isTyping) callback(opt); };
+        } else {
+            if (opt.dualGuideOnly || opt.dualSentinelOnly) {
+                btn.classList.add("dual-special");
+            }
+            btn.innerText = opt.text;
+            btn.onclick = () => { if (!isTyping) callback(opt); };
+        }
+        row.appendChild(btn);
+    });
+    area.appendChild(row);
+}
+
+// --- 미션 시작 ---
+async function startMission() {
+    if (isTyping || isBerserk) return;
+
+    const pair = getPairType();
+    const screen = document.getElementById('screen');
+    const choiceArea = document.getElementById('choice-area');
+    screen.innerHTML = "";
+    choiceArea.innerHTML = "";
+
+    currentMissionContext = missionDB[Math.floor(Math.random() * missionDB.length)];
+    isTyping = true;
+
+    // 상단 정보 업데이트
+    document.getElementById('opr-id').innerText = currentMissionContext.threatId;
+    document.getElementById('threat-lv').innerText = currentMissionContext.threat;
+    document.getElementById('sync-rate').innerText = Math.floor(Math.random() * 30 + 65) + "%";
+
+    await type("ARCH_TACTICAL_PROTOCOL_INITIATED...", "glitch");
+    await type(">> 작전 코드 발급 완료. 데이터베이스 연결됨.", "system-msg");
+
+    // 페어 유형 안내
+    if (pair === 'GG') {
+        await type(">> [PAIR_INFO] 가이드 × 가이드 페어 — 직접 전투력 한정적. 보조/공명 작전 추천.", "system-msg");
+    } else if (pair === 'SS') {
+        await type(">> [PAIR_WARN] 센티넬 × 센티넬 페어 — 가이드 부재. 가이딩 필요 수치 관리에 각별한 주의 요망.", "warning glitch");
+    } else {
+        await type(">> [PAIR_INFO] 센티넬 × 가이드 — 표준 페어. 전 옵션 가용.", "system-msg");
+    }
+
+    await type(`>> 작전 구역: ${currentMissionContext.location}`);
+    await type(`>> 위협 등급: ${currentMissionContext.threat} // ${currentMissionContext.threatId}`);
+    await type(`>> 상황: ${currentMissionContext.desc}`);
+    await type("-----------------------------------");
+    await type(currentMissionContext.phase1, "warning");
+
+    await updateContamination(8);
+    updateStatus(true);
+    renderChoices(currentMissionContext.choices, handlePhase1);
+    isTyping = false;
+}
+
+async function handlePhase1(choiceObj) {
+    if (isTyping || isBerserk) return;
+    document.getElementById('choice-area').innerHTML = "";
+    isTyping = true;
+    await type(" ");
+    await type(`[TACTIC_SELECT] ${choiceObj.text}`, "normal");
+    await type(choiceObj.phase2, "warning");
+    isTyping = false;
+    renderChoices(choiceObj.subChoices, handlePhase2);
+}
+
+async function handlePhase2(subChoiceObj) {
+    if (isTyping || isBerserk) return;
+    document.getElementById('choice-area').innerHTML = "";
+    isTyping = true;
+    await type(" ");
+    await type(`[FINAL_RESPONSE] ${subChoiceObj.text}`, "normal");
+    await type("...ANALYZING_TACTICAL_OUTCOME...", "glitch");
+    await type("-----------------------------------");
+
+    if (subChoiceObj.contam < 0) {
+        triggerHealEffect();
+        await type(subChoiceObj.result, "heal");
+    } else {
+        await type(subChoiceObj.result, subChoiceObj.warn ? 'warning' : 'normal');
+    }
+
+    await updateContamination(subChoiceObj.contam);
+    updateStatus(false, subChoiceObj.warn);
+    isTyping = false;
+
+    if (!isBerserk) {
+        const nextBtn = document.createElement("button");
+        nextBtn.className = "hud-btn";
+        nextBtn.style.marginTop = "15px";
+        nextBtn.innerText = "▶ NEXT_PROTOCOL";
+        nextBtn.onclick = startMission;
+        document.getElementById('choice-area').appendChild(nextBtn);
+    }
+}
+
+function updateStatus(isStart, isWarn = false) {
+    if (isBerserk) return;
+    const sync = isStart ? Math.floor(Math.random() * 25 + 70) :
+                 (isWarn ? Math.floor(Math.random() * 25 + 40) : Math.floor(Math.random() * 15 + 85));
+    document.getElementById('sync-rate').innerText = sync + "%";
+}
+
+// --- OOC 생성 ---
+function generateOOC() {
+    if (isBerserk) return;
+    const role1 = document.getElementById('role1').value;
+    const role2 = document.getElementById('role2').value;
+    const name1 = document.getElementById('name1').value || (role1 === 'SENTINEL' ? "미등록 센티넬 A" : "미등록 가이드 A");
+    const name2 = document.getElementById('name2').value || (role2 === 'SENTINEL' ? "미등록 센티넬 B" : "미등록 가이드 B");
+    const rank1 = RANK_LABEL[document.getElementById('rank1').value];
+    const rank2 = RANK_LABEL[document.getElementById('rank2').value];
+    const elem1 = ELEM_LABEL[document.getElementById('elem1').value];
+    const elem2 = ELEM_LABEL[document.getElementById('elem2').value];
+
+    const pair = getPairType();
+    const pairName = { SG: '센티넬 × 가이드 (표준 페어)', SS: '센티넬 × 센티넬 (이중 전투 페어)', GG: '가이드 × 가이드 (이중 지원 페어)' };
+
+    let loc = currentMissionContext ? currentMissionContext.location : "ARCH 본부 / 센트럴 코어";
+    let desc = currentMissionContext ? currentMissionContext.desc : "신규 작전 명령 대기 중. 페어 가이딩 동기화 점검 중입니다.";
+    let oprId = currentMissionContext ? currentMissionContext.threatId : `ARCH-OPR-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    let threat = currentMissionContext ? currentMissionContext.threat : "STANDBY";
+
+    const ooc = `*[OOC: ARCH 전략 사령부 작전 프로토콜]
+==========================================
+▶ OPERATION_CODE : ${oprId}
+▶ THREAT_LEVEL    : ${threat}
+▶ PAIR_TYPE       : ${pairName[pair]}
+==========================================
+
+▶ AGENT_A
+  - 식별명 : ${name1}
+  - 역할   : [${role1}]
+  - 등급   : ${rank1}
+  - 속성   : ${elem1}
+
+▶ AGENT_B
+  - 식별명 : ${name2}
+  - 역할   : [${role2}]
+  - 등급   : ${rank2}
+  - 속성   : ${elem2}
+
+==========================================
+▶ 작전 구역 : ${loc}
+▶ 현재 상황 : ${desc}
+▶ 가이딩 필요 수치 : ${contamLevel}%
+==========================================
+
+[지침]
+위 데이터를 기반으로 변수를 창출하여, 페어 간 상호작용(전투/가이딩/감정선)을 진중하고 몰입감 있게 전개해 주십시오.
+- 페어 유형에 따른 특성을 반영해 주세요:
+  · SG : 표준 가이딩 가능. 점막 접촉 농도에 따라 안정 효율 변동.
+  · SS : 가이딩 불가. 출력 동기화 / 상호 마모 / 외부 가이드 지원 묘사 권장.
+  · GG : 직접 전투 불가. 영역 가이딩 / 정신 공명 / 인적 지원 묘사 권장.
+- ARCH 세계관 거점 활용 권장: 센트럴 코어, 하늘정원, STAB, 하모니 상담실, 훈련장, 라운지, 공명연구실.
+- 등급에 따른 위신 / 책임 / 자기인식을 반영해 주세요.
+
+MAY THE ARCH PROTECT YOU.*`;
+
+    document.getElementById('oocBox').value = ooc;
+
+    const sysMsg = document.createElement("div");
+    sysMsg.className = "line warning";
+    sysMsg.innerText = ">> [SYSTEM] 하단 OOC 프로토콜 문서가 생성되었습니다.";
+    document.getElementById('screen').appendChild(sysMsg);
+    document.getElementById('screen').scrollTop = document.getElementById('screen').scrollHeight;
+}
+
+function copyOOC() {
+    if (isBerserk) return;
+    const box = document.getElementById('oocBox');
+    box.select();
+    document.execCommand("copy");
+
+    const sysMsg = document.createElement("div");
+    sysMsg.className = "line heal-text";
+    sysMsg.innerText = ">> [SYSTEM] OOC 프로토콜이 클립보드에 복사되었습니다.";
+    document.getElementById('screen').appendChild(sysMsg);
+    document.getElementById('screen').scrollTop = document.getElementById('screen').scrollHeight;
+}
+
+async function saveImage() {
+    const lower = document.getElementById('lower-ui');
+    const top = document.getElementById('top-controls');
+    lower.style.display = 'none';
+    top.style.display = 'none';
+
+    const canvas = await html2canvas(document.getElementById('capture'), { scale: 2, backgroundColor: "#000" });
+    const link = document.createElement("a");
+    link.download = "ARCH_TACTICAL_LOG.png";
+    link.href = canvas.toDataURL();
+    link.click();
+
+    lower.style.display = 'block';
+    top.style.display = 'flex';
+}
+
+// --- 초기화 ---
+window.onload = () => {
+    syncUI(1);
+    syncUI(2);
+    updatePairIndicator();
+};
+
+</script>
+
+</body>
+</html>
