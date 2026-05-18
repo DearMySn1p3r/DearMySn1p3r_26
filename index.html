@@ -608,6 +608,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.min.js"></script>
 <script>
 // ============== ARCH TACTICAL MISSION SYSTEM JS ==============
 
@@ -2270,219 +2271,240 @@ async function saveImage() {
     const cursorEl = document.getElementById('cursor');
 
     const statusMsg = document.createElement("div");
-    statusMsg.className = "line system-msg";
+    statusMsg.className = "line system-msg capture-status";
     statusMsg.innerText = ">> [CAPTURE] 이미지 렌더링 중...";
-    if (screen) { screen.appendChild(statusMsg); /* scrollTop은 캡처 후 복원 */ }
+    if (screen) { screen.appendChild(statusMsg); }
 
-    const pauseStyle = document.createElement('style');
-    pauseStyle.id = 'capture-pause-style';
-    pauseStyle.textContent = '* { animation-play-state: paused !important; transition: none !important; }';
-    document.head.appendChild(pauseStyle);
+    // 캡처 중 강제 스타일:
+    //   1) 애니메이션·트랜지션 정지 (캡처 떨림 방지)
+    //   2) #capture 내부의 모든 스크롤바 완전히 숨김 + overflow hidden
+    //      (html-to-image가 기본 16px 스크롤바를 렌더링하는 문제 해결)
+    //   3) 캡처 상태 메시지는 캡처 결과물에 안 보이게
+    const captureStyle = document.createElement('style');
+    captureStyle.id = 'capture-pause-style';
+    captureStyle.textContent = `
+        * { animation-play-state: paused !important; transition: none !important; }
+        #capture, #capture * {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+        }
+        #capture ::-webkit-scrollbar,
+        #capture::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            background: transparent !important;
+        }
+        #capture #screen { overflow: hidden !important; }
+        #screen .capture-status { visibility: hidden !important; }
+    `;
+    document.head.appendChild(captureStyle);
 
     lower.style.display = 'none';
     top.style.display = 'none';
     const prevCursorDisplay = cursorEl ? cursorEl.style.display : '';
     if (cursorEl) cursorEl.style.display = 'none';
 
-    // 캡처 직전 #screen 스크롤을 맨 위로 (statusMsg 추가로 아래로 밀린 상태 보정)
-    // finally에서 사용자 메시지 보이도록 다시 맨 아래로 내림
-    const screenScrollBackup = screen ? screen.scrollTop : 0;
     if (screen) screen.scrollTop = 0;
 
     try { await document.fonts.ready; } catch (_) {}
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 120));
 
-    // ─── 캡처와 저장을 분리: canvas만 만들어지면 무조건 저장 시도 ───
-    let canvas = null;
-    let captureStage = 'init';
+    // ─── SCALE 결정 ───
+    // 1280x820 기준: SCALE=2 → 2560x1640 (충분히 선명, iOS Safari 안전 범위)
+    const SCALE = 2;
+    const HIGH_RES_SIZE = 800;
+    const fileName = "ARCH_TACTICAL_LOG.png";
+
+    // ─── 캐릭터 이미지 사전 처리 (정사각형 cover 크롭) ───
+    let captureStage = 'pre-process';
+    let prepared1 = '', prepared2 = '';
+    const originalSrcs = {};
 
     try {
-        captureStage = 'pre-process';
-        const SCALE = 4;
-        const HIGH_RES_SIZE = 1500;
-
-        // photo-frame 안에 동적 생성된 img를 찾음. 없으면 이미지 미업로드 상태.
         async function prepareCharSrc(frameId) {
             const frame = document.getElementById(frameId);
-            if (!frame) return { src: '', img: null };
+            if (!frame) return '';
             const el = frame.querySelector('img');
-            if (!el) return { src: '', img: null };
-            if (!el.complete || !el.naturalWidth) return { src: '', img: el };
-            if (!el.src || !el.src.startsWith('data:')) return { src: '', img: el };
-            const processed = await preProcessCharImage(el.src, HIGH_RES_SIZE);
-            return { src: processed, img: el };
+            if (!el) return '';
+            if (!el.complete || !el.naturalWidth) return '';
+            if (!el.src || !el.src.startsWith('data:')) return '';
+            return await preProcessCharImage(el.src, HIGH_RES_SIZE);
         }
-
-        const [c1, c2] = await Promise.all([
+        [prepared1, prepared2] = await Promise.all([
             prepareCharSrc('char1'),
             prepareCharSrc('char2')
         ]);
-        const prepared1 = c1.src, prepared2 = c2.src;
 
-        console.log('[CAPTURE_PREP]', {
-            prepared1: prepared1 ? `OK (${(prepared1.length/1024).toFixed(0)}KB)` : 'NONE',
-            prepared2: prepared2 ? `OK (${(prepared2.length/1024).toFixed(0)}KB)` : 'NONE'
-        });
-
-        captureStage = 'html2canvas';
-        canvas = await html2canvas(captureEl, {
-            scale: SCALE,
-            backgroundColor: "#000",
-            logging: false,
-            imageTimeout: 10000,
-            scrollX: -window.scrollX,
-            scrollY: -window.scrollY,
-            onclone: (clonedDoc) => {
-                try {
-                    // 클론된 #screen 스크롤도 맨 위로 (원본은 이미 0으로 설정했지만
-                    // html2canvas가 클론 시점에 스크롤 상태를 복사할 수 있어 명시적 처리)
-                    const clonedScreen = clonedDoc.getElementById('screen');
-                    if (clonedScreen) clonedScreen.scrollTop = 0;
-
-                    // 외부 stylesheet link 제거 — html2canvas가 외부 폰트 fetch 시도하다
-                    // 에러나는 케이스 방지 (페이지에는 이미 폰트 로드됨, 클론에선 재fetch 불필요)
-                    clonedDoc.querySelectorAll('link[rel="stylesheet"][href^="http"]').forEach(l => l.remove());
-
-                    // statusMsg는 캡처에 안 보이도록 클론에서 제거 (있다면)
-                    const cs = clonedDoc.getElementById('screen');
-                    if (cs) {
-                        cs.querySelectorAll('.system-msg').forEach(m => {
-                            if (m.innerText && m.innerText.includes('[CAPTURE]')) m.remove();
-                        });
-                    }
-
-                    // 캐릭터 이미지 처리
-                    const pairs = [
-                        { frameId: 'char1', newSrc: prepared1 },
-                        { frameId: 'char2', newSrc: prepared2 }
-                    ];
-                    pairs.forEach(({ frameId, newSrc }) => {
-                        const frame = clonedDoc.getElementById(frameId);
-                        if (!frame) return;
-                        const img = frame.querySelector('img');
-                        if (!newSrc) {
-                            // 이미지 없거나 처리 실패 → 클론의 img도 제거 (빈 photo-frame 캡처)
-                            if (img) img.remove();
-                            return;
-                        }
-                        if (img) {
-                            img.src = newSrc;
-                            img.removeAttribute('crossorigin');
-                            img.style.display = 'block';
-                            img.style.width = '100%';
-                            img.style.height = '100%';
-                            img.style.objectFit = 'fill';
-                            img.style.position = 'absolute';
-                            img.style.top = '0';
-                            img.style.left = '0';
-                        }
-                    });
-                } catch (e) {
-                    console.warn('[ONCLONE_FAIL]', e);
-                }
+        // 라이브 DOM에 임시 적용 → 캡처 직후 복원 (UI는 가려진 상태라 사용자에게 안 보임)
+        [['char1', prepared1], ['char2', prepared2]].forEach(([id, src]) => {
+            if (!src) return;
+            const img = document.getElementById(id)?.querySelector('img');
+            if (img) {
+                originalSrcs[id] = img.src;
+                img.src = src;
             }
         });
-        captureStage = 'canvas-ready';
-    } catch (err) {
-        console.error('[CAPTURE_ERROR]', captureStage, err);
-        statusMsg.className = "line warning";
-        statusMsg.innerText = `>> [ERROR] 캡처 실패 (${captureStage}): ` + (err?.message || err);
+    } catch (e) {
+        console.warn('[PREPROCESS_FAIL]', e);
     }
 
-    // ─── 캔버스가 만들어졌다면 무슨 일이 있어도 저장 시도 ───
-    if (canvas && canvas.width > 0) {
-        const fileName = "ARCH_TACTICAL_LOG.png";
-        let saved = false;
-        let saveStage = '';
+    // ─── 캡처 시도: html2canvas 우선 (빠르고 스크롤바 안 그림) ───
+    let blob = null;
+    let canvas = null;
 
-        // [1] Blob + a.download
+    if (window.html2canvas) {
         try {
-            saveStage = 'toBlob';
-            await new Promise((resolve) => {
-                if (!canvas.toBlob) { resolve(); return; }
-                let resolved = false;
-                const timer = setTimeout(() => {
-                    if (!resolved) { resolved = true; resolve(); }
-                }, 8000); // toBlob 무한 대기 방지
-                canvas.toBlob((blob) => {
-                    if (resolved) return;
-                    resolved = true;
-                    clearTimeout(timer);
-                    if (!blob) { resolve(); return; }
+            captureStage = 'html2canvas';
+            const t0 = performance.now();
+            canvas = await html2canvas(captureEl, {
+                scale: SCALE,
+                backgroundColor: "#000",
+                logging: false,
+                useCORS: true,
+                allowTaint: true,
+                imageTimeout: 15000,
+                width: captureEl.offsetWidth,
+                height: captureEl.offsetHeight,
+                windowWidth: document.documentElement.offsetWidth,
+                windowHeight: document.documentElement.offsetHeight,
+                scrollX: -window.scrollX,
+                scrollY: -window.scrollY,
+                onclone: (clonedDoc) => {
                     try {
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement("a");
-                        link.download = fileName;
-                        link.href = url;
-                        link.rel = "noopener";
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        setTimeout(() => URL.revokeObjectURL(url), 4000);
-                        saved = true;
+                        const clonedScreen = clonedDoc.getElementById('screen');
+                        if (clonedScreen) {
+                            clonedScreen.scrollTop = 0;
+                            clonedScreen.style.overflow = 'hidden';
+                        }
+                        clonedDoc.querySelectorAll('link[rel="stylesheet"][href^="http"]').forEach(l => l.remove());
+                        clonedDoc.querySelectorAll('.capture-status').forEach(m => m.remove());
                     } catch (e) {
-                        console.warn('[BLOB_LINK_FAIL]', e);
+                        console.warn('[ONCLONE_FAIL]', e);
                     }
-                    resolve();
+                }
+            });
+            console.log(`[html2canvas] ${(performance.now() - t0).toFixed(0)}ms`);
+            if (canvas && canvas.width > 0) captureStage = 'html2canvas-ok';
+        } catch (err) {
+            console.error('[HTML2CANVAS_FAIL]', err);
+        }
+    }
+
+    // ─── 폴백: html-to-image (html2canvas가 완전히 실패했을 때만) ───
+    if ((!canvas || canvas.width === 0) && window.htmlToImage) {
+        try {
+            captureStage = 'html-to-image';
+            const t0 = performance.now();
+            blob = await window.htmlToImage.toBlob(captureEl, {
+                pixelRatio: SCALE,
+                backgroundColor: '#000',
+                cacheBust: false,
+                skipFonts: true,  // 폰트는 이미 페이지에 로드돼 있음 → 재임베드 스킵으로 속도 향상
+                style: { transform: 'none', overflow: 'hidden' }
+            });
+            console.log(`[html-to-image] ${(performance.now() - t0).toFixed(0)}ms`);
+            if (blob) captureStage = 'html-to-image-ok';
+        } catch (e) {
+            console.warn('[HTML_TO_IMAGE_FAIL]', e);
+        }
+    }
+
+    // ─── 원본 이미지 복원 ───
+    Object.entries(originalSrcs).forEach(([id, src]) => {
+        const img = document.getElementById(id)?.querySelector('img');
+        if (img) img.src = src;
+    });
+
+    // ─── canvas만 있으면 blob으로 변환 ───
+    if (!blob && canvas && canvas.width > 0) {
+        try {
+            blob = await new Promise((resolve) => {
+                if (!canvas.toBlob) { resolve(null); return; }
+                const timer = setTimeout(() => resolve(null), 8000);
+                canvas.toBlob((b) => {
+                    clearTimeout(timer);
+                    resolve(b);
                 }, "image/png");
             });
         } catch (e) {
             console.warn('[TOBLOB_FAIL]', e);
         }
+    }
 
-        // [2] dataURL fallback
-        if (!saved) {
-            try {
-                saveStage = 'toDataURL';
-                const dataUrl = canvas.toDataURL("image/png");
-                const link = document.createElement("a");
-                link.download = fileName;
-                link.href = dataUrl;
-                link.rel = "noopener";
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+    // ─── 저장 ───
+    let saved = false;
+    let saveStage = '';
+
+    if (blob) {
+        try {
+            saveStage = 'blob-link';
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.download = fileName;
+            link.href = url;
+            link.rel = "noopener";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            saved = true;
+        } catch (e) {
+            console.warn('[BLOB_LINK_FAIL]', e);
+        }
+    }
+
+    // dataURL 폴백
+    if (!saved && canvas && canvas.width > 0) {
+        try {
+            saveStage = 'dataurl';
+            const dataUrl = canvas.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.download = fileName;
+            link.href = dataUrl;
+            link.rel = "noopener";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            saved = true;
+        } catch (e) {
+            console.warn('[DATAURL_FAIL]', e);
+        }
+    }
+
+    // 새 창 폴백 (iOS Safari 등 다운로드 막힌 환경)
+    if (!saved && blob) {
+        try {
+            saveStage = 'new-window';
+            const url = URL.createObjectURL(blob);
+            const w = window.open();
+            if (w) {
+                w.document.write(
+                    '<title>' + fileName + '</title>' +
+                    '<style>body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;}' +
+                    'img{max-width:100%;height:auto;}p{color:#fff;font-family:sans-serif;text-align:center;padding:10px;}</style>' +
+                    '<p>이미지를 길게 눌러 저장하세요 (Long-press to save)</p>' +
+                    '<img src="' + url + '" alt="ARCH_TACTICAL_LOG">'
+                );
+                w.document.close();
                 saved = true;
-            } catch (e) {
-                console.warn('[DATAURL_FAIL]', e);
             }
+        } catch (e) {
+            console.error('[NEWWIN_FAIL]', e);
         }
+    }
 
-        // [3] 새 창에 이미지 표시 (iOS Safari 등)
-        if (!saved) {
-            try {
-                saveStage = 'newWindow';
-                const dataUrl = canvas.toDataURL("image/png");
-                const w = window.open();
-                if (w) {
-                    w.document.write(
-                        '<title>' + fileName + '</title>' +
-                        '<style>body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;}' +
-                        'img{max-width:100%;height:auto;}p{color:#fff;font-family:sans-serif;text-align:center;padding:10px;}</style>' +
-                        '<p>이미지를 길게 눌러 저장하세요 (Long-press to save)</p>' +
-                        '<img src="' + dataUrl + '" alt="ARCH_TACTICAL_LOG">'
-                    );
-                    w.document.close();
-                    saved = true;
-                }
-            } catch (e) {
-                console.error('[NEWWIN_FAIL]', e);
-            }
-        }
-
-        if (saved) {
-            statusMsg.className = "line heal-text";
-            statusMsg.innerText = ">> [CAPTURE] 이미지 저장 완료.";
-        } else {
-            statusMsg.className = "line warning";
-            statusMsg.innerText = `>> [ERROR] 캡처는 됐으나 저장 실패 (${saveStage}). 팝업/다운로드 차단 확인.`;
-        }
-    } else if (!canvas) {
-        // 이미 위에서 에러 메시지 표시됨
+    // ─── 결과 메시지 ───
+    if (saved) {
+        statusMsg.className = "line heal-text";
+        statusMsg.innerText = `>> [CAPTURE] 이미지 저장 완료. (${captureStage})`;
+    } else if (!blob && !canvas) {
+        statusMsg.className = "line warning";
+        statusMsg.innerText = `>> [ERROR] 캡처 실패 (${captureStage}). 콘솔(F12) 로그를 확인해 주세요.`;
     } else {
         statusMsg.className = "line warning";
-        statusMsg.innerText = ">> [ERROR] 캡처 캔버스가 비어 있음 (width=0)";
+        statusMsg.innerText = `>> [ERROR] 캡처는 됐으나 저장 실패 (${saveStage || captureStage}).`;
     }
 
     // ─── cleanup ───
