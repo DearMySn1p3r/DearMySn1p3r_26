@@ -2297,6 +2297,8 @@ async function saveImage() {
         }
         #capture #screen { overflow: hidden !important; }
         #screen .capture-status { visibility: hidden !important; }
+        /* 커스텀 십자 커서: 캡처에 절대 안 나오게 강제 차단 */
+        #cursor { display: none !important; visibility: hidden !important; opacity: 0 !important; }
     `;
     document.head.appendChild(captureStyle);
 
@@ -2380,6 +2382,8 @@ async function saveImage() {
                         }
                         clonedDoc.querySelectorAll('link[rel="stylesheet"][href^="http"]').forEach(l => l.remove());
                         clonedDoc.querySelectorAll('.capture-status').forEach(m => m.remove());
+                        // 커서 요소 완전 제거 (display:none만으로 안 잡힐 때 대비)
+                        clonedDoc.getElementById('cursor')?.remove();
                     } catch (e) {
                         console.warn('[ONCLONE_FAIL]', e);
                     }
@@ -2402,6 +2406,13 @@ async function saveImage() {
                 backgroundColor: '#000',
                 cacheBust: false,
                 skipFonts: true,  // 폰트는 이미 페이지에 로드돼 있음 → 재임베드 스킵으로 속도 향상
+                filter: (node) => {
+                    // 커서·캡처 상태 메시지는 캡처에서 제외
+                    if (!node || !node.id) return true;
+                    if (node.id === 'cursor') return false;
+                    if (node.classList && node.classList.contains('capture-status')) return false;
+                    return true;
+                },
                 style: { transform: 'none', overflow: 'hidden' }
             });
             console.log(`[html-to-image] ${(performance.now() - t0).toFixed(0)}ms`);
