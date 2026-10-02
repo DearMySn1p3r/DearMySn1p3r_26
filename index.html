@@ -483,7 +483,7 @@ body.stage-calming #capture{border-color:rgba(143,227,207,.5)}
     <div class="st"><span class="lbl">Pair</span><b id="pair-type">UNDEFINED</b></div>
     <div class="st"><span class="lbl">Ops</span><b id="pairCnt">000</b></div>
   </div>
-  <div class="hr"><span id="clock">00:00:00</span><span class="lbl">KST</span><button class="tbtn" onclick="saveImage()"><i></i>REC</button></div>
+  <div class="hr"><span id="clock">00:00:00</span><span class="lbl">KST</span><button class="tbtn" onclick="captureScreen()"><i></i>REC</button></div>
 </header>
 
 <div id="main">
@@ -3362,6 +3362,33 @@ saveImage=async function(){
   }catch(e){console.error(e);toast('CAPTURE FAILED');}
   finally{host.remove();saving=false;}
 };
+
+/* ---------- REC: full-screen capture (site as seen) ---------- */
+let CAPTURING=false;
+function captureScreen(){
+  if(CAPTURING)return;if(typeof html2canvas==='undefined'){toast('CAPTURE UNAVAILABLE');return;}
+  CAPTURING=true;toast('CAPTURING SCREEN');
+  const src=[...document.querySelectorAll('canvas')];
+  const skip=el=>['cursor','cur-dot','toast','flash','boot','modal','calming-layer'].includes(el.id)||(location.protocol==='file:'&&el.tagName==='IMG')||(el.id==='ending'&&!el.classList.contains('on'));
+  const scrolls=['main','v-op','screen','p-pair','p-op','p-rec','p-ooc'].map(i=>[i,$(i)?$(i).scrollTop:0]);
+  setTimeout(()=>{
+    html2canvas(document.body,{backgroundColor:'#000',useCORS:true,logging:false,scale:Math.max(2,devicePixelRatio||1),
+      width:innerWidth,height:innerHeight,windowWidth:innerWidth,windowHeight:innerHeight,x:0,y:0,scrollX:0,scrollY:0,ignoreElements:skip,
+      onclone:d=>{
+        const dc=[...d.querySelectorAll('canvas')];src.forEach((c,i)=>{const t=dc[i];if(t&&c.width&&c.height){t.width=c.width;t.height=c.height;t.getContext('2d').drawImage(c,0,0);}});
+        d.body.classList.add('cap');
+        {const e=d.getElementById('evlog');if(e)e.style.visibility='hidden';}
+        d.querySelectorAll('input').forEach(i=>{if(!i.value)i.style.color='rgba(255,255,255,.25)';});
+        {const t=d.getElementById('st-t');if(t)t.textContent='MISSION';}
+        /* masks are not supported by the renderer: drop them so the stage reads cleanly */
+        {const v=d.getElementById('v-op');if(v){v.style.webkitMaskImage='none';v.style.maskImage='none';}}
+        scrolls.forEach(([i,t])=>{const e=d.getElementById(i);if(e)e.scrollTop=t;});
+      }})
+    .then(c=>{const dt=new Date(),p=n=>String(n).padStart(2,'0');download(c.toDataURL('image/png'),`ARCH_CAPTURE_${dt.getFullYear()}${p(dt.getMonth()+1)}${p(dt.getDate())}_${p(dt.getHours())}${p(dt.getMinutes())}${p(dt.getSeconds())}.png`);flash();toast('CAPTURE SAVED');logEv('REC','화면 캡쳐 저장');})
+    .catch(e=>{console.error(e);toast('CAPTURE FAILED');})
+    .finally(()=>{CAPTURING=false;});
+  },350);
+}
 
 /* ---------- tabs / mobile nav ---------- */
 let TAB='pair';
