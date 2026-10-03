@@ -2638,7 +2638,7 @@ function determineEnding() {
     if (bondScore >= 85 && strainScore >= 30) {
         return {
             tag: "ENDING : CO-DEPENDENCE", grade: "CLASSIFIED",
-            title: "■ 떨어질 수 없는 둘 — 가이딩 중독 엔딩",
+            title: "■ 떨어질 수 없는 둘 — 상호 의존 엔딩",
             lines: [
                 ">> 두 사람의 파장은 그 누구보다 깊게 얽혔습니다. 다만, 그 깊이가 곧 사슬이 되었습니다.",
                 ">> 한쪽이 잠시라도 곁을 비우면 다른 한쪽의 임계치가 치솟습니다. 떨어져 있는 법을 잊어버렸습니다.",
@@ -3110,10 +3110,9 @@ determineEnding=function(){
   const pair=getPairType(),opp=isPairOpposite(),same=isPairSameElement();
   if(missionCount>=8&&berserkCount===0&&strainScore<=16&&bondScore>=70)return{tag:"ENDING : PERFECT RECORD",grade:"S+ / TEXTBOOK",
     title:"■ 무결점 기록 — 교본이 된 페어",lines:[">> 단 한 번의 임계 돌파도, 단 한 번의 큰 부상도 없었습니다.",">> 두 사람의 작전 기록은 그대로 신입 교육 교재가 되었습니다.",">> 교관이 화면을 가리키며 말합니다. '이게 정답이다.' 강의실 뒤편에서 두 사람은 괜히 헛기침을 합니다.",">> 완벽함은 재능이 아니라, 매번 서로를 먼저 살핀 습관이었습니다."],cls:["heal","system-msg","normal","heal"]};
-  const base=_determine();
+  /* shared endings only: judge every pair with the same rules (no GG/SS-only endings) */
+  const gp=getPairType;getPairType=()=>'SG';let base;try{base=_determine();}finally{getPairType=gp;}
   if(base.tag!=="ENDING : QUIET DAYS")return base;
-  if(pair==='SS'&&same&&bondScore>=66)return{tag:"ENDING : TWIN FLAME",grade:"MIRROR PAIR",
-    title:"■ 같은 색의 불꽃 — 쌍둥이 파장 엔딩",lines:[">> 가이드 없이 같은 속성으로 버텨온 두 센티넬. 그 파장은 이제 거울처럼 서로를 비춥니다.",">> 공명연구실은 두 사람에게 '쌍둥이 파장'이라는 새 분류명을 붙였습니다.",">> 한 사람이 흔들리면 다른 한 사람이 같은 박자로 흔들려 그 흔들림을 상쇄합니다.",">> 가이드는 없었지만, 혼자였던 적도 없었습니다."],cls:["heal","system-msg","normal","heal"]};
   if(opp&&bondScore>=60)return{tag:"ENDING : EQUILIBRIUM",grade:"OPPOSITE BOND",
     title:"■ 상극의 균형 — 반대편의 안식 엔딩",lines:[">> 서로를 지우는 속성끼리 만난 두 사람은 처음엔 부딪히기만 했습니다.",">> 그러나 수많은 작전 끝에, 상대의 파장이 자신의 폭주를 가장 정확하게 꺼준다는 걸 알게 되었습니다.",">> 공명연구실의 이론은 수정되었습니다. '상극은 충돌이 아니라 균형이다.'",">> 불이 물을, 물이 불을 끝까지 놓지 않은 결말."],cls:["normal","heal","system-msg","heal"]};
   if(strainScore>=45)return{tag:"ENDING : BURNOUT",grade:"LONG-TERM LEAVE",
@@ -3121,9 +3120,9 @@ determineEnding=function(){
   return base;
 };
 const ENDINGS=[
-  ['ENDING : IMPRINT','영구 각인'],['ENDING : RESONANCE','두 그릇의 공명'],['ENDING : LIVING LEGEND','살아있는 신화'],['ENDING : PERFECT RECORD','무결점 기록'],
-  ['ENDING : EQUILIBRIUM','상극의 균형'],['ENDING : TWIN FLAME','같은 색의 불꽃'],['ENDING : QUIET DAYS','평온한 일상'],['ENDING : CO-DEPENDENCE','떨어질 수 없는 둘'],
-  ['ENDING : BURNOUT','타버린 별'],['ENDING : ATTRITION','마모의 끝'],['ENDING : COLLAPSE','무너진 궤도']
+  ['ENDING : IMPRINT','영구 각인'],['ENDING : LIVING LEGEND','살아있는 신화'],['ENDING : PERFECT RECORD','무결점 기록'],
+  ['ENDING : EQUILIBRIUM','상극의 균형'],['ENDING : QUIET DAYS','평온한 일상'],['ENDING : CO-DEPENDENCE','떨어질 수 없는 둘'],
+  ['ENDING : BURNOUT','타버린 별'],['ENDING : COLLAPSE','무너진 궤도']
 ];
 const TONE={'ENDING : IMPRINT':'heal','ENDING : RESONANCE':'heal','ENDING : LIVING LEGEND':'prima','ENDING : PERFECT RECORD':'prima','ENDING : EQUILIBRIUM':'heal','ENDING : TWIN FLAME':'heal',
   'ENDING : QUIET DAYS':'calm','ENDING : CO-DEPENDENCE':'warn','ENDING : BURNOUT':'warn','ENDING : ATTRITION':'warn','ENDING : COLLAPSE':'crit'};
@@ -3138,16 +3137,13 @@ const EPI={'ENDING : IMPRINT':'몇 년 뒤, 신입 요원이 묻습니다. "두 
   'ENDING : BURNOUT':'요양 시설 창가에 편지 한 통이 도착합니다. 하모니 부서의 손글씨. "돌아올 자리는 비워두겠습니다."',
   'ENDING : ATTRITION':'옥상 난간에 꽁초 두 개가 나란히 놓여 있습니다. 다음 날 청소부가 치우기 전까지.',
   'ENDING : COLLAPSE':'해제된 페어 명단에서 두 이름이 지워졌습니다. 하지만 서로의 통신 기록에서는, 끝내 지우지 못했습니다.'};
-const HINT={'ENDING : IMPRINT':'센티넬 × 가이드 페어로, 유대도를 높게 지킨 채 기록을 마감해 보세요.',
-  'ENDING : RESONANCE':'가이드 둘이 함께라면? 서로를 끝까지 믿어 유대도를 끌어올려 보세요.',
+const HINT={'ENDING : IMPRINT':'어떤 페어든, 유대도를 높게 지킨 채 기록을 마감해 보세요.',
   'ENDING : LIVING LEGEND':'SS급 군주가 페어에 있을 때, 깊은 유대를 쌓아 보세요.',
   'ENDING : PERFECT RECORD':'작전 8회 이상 · 임계 돌파 0회 · 마모는 낮게, 유대는 높게. 교과서 같은 기록.',
   'ENDING : EQUILIBRIUM':'상극 속성끼리 만난 페어가 무난하게, 그러나 서로를 놓지 않는다면.',
-  'ENDING : TWIN FLAME':'같은 속성의 센티넬 두 명이 등을 맞댈 때.',
   'ENDING : QUIET DAYS':'특별한 조건은 없어요. 큰 사건 없이 무난하게 기록을 마감하면.',
   'ENDING : CO-DEPENDENCE':'유대가 너무 깊어진 채로 마모까지 쌓였다면… 그건 사랑일까요, 의존일까요.',
   'ENDING : BURNOUT':'마모가 크게 쌓인 상태로 기록을 마감하면.',
-  'ENDING : ATTRITION':'가이드 없는 센티넬 둘. 마모가 쌓이거나 유대가 흔들리면.',
   'ENDING : COLLAPSE':'임계 돌파를 두 번 이상 겪거나, 유대가 바닥까지 떨어지면.'};
 function seenEndings(){try{return JSON.parse(localStorage.getItem('arch-tms-endings')||'[]');}catch(e){return[];}}
 function markEnding(tag){try{const s=seenEndings();if(!s.includes(tag)){s.push(tag);localStorage.setItem('arch-tms-endings',JSON.stringify(s));}}catch(e){}}
@@ -3560,6 +3556,27 @@ async function spShare(){if(!PV||!PV.blob)return;try{await navigator.share({file
 function spDownload(){if(!PV)return;const a=document.createElement('a');a.href=PV.obj||PV.url;a.download=PV.name;document.body.appendChild(a);a.click();a.remove();toast('DOWNLOAD STARTED');}
 $('savePv').addEventListener('click',e=>{if(e.target===$('savePv'))closeSavePv();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('savePv').classList.contains('on'))closeSavePv();});
+
+/* ═════ FIX LAYER · curly quotes everywhere in story text ═════ */
+function curly(s){
+  if(s==null)return s;s=String(s);if(!/["']/.test(s))return s;
+  let out='';
+  for(let i=0;i<s.length;i++){const ch=s[i];
+    if(ch!=='"'&&ch!=="'"){out+=ch;continue;}
+    const prev=i?out[out.length-1]:'',next=s[i+1]||'';
+    const open=!prev||/[\s(\[{“‘—–\-:>·]/.test(prev);
+    if(ch==="'"&&/[A-Za-z0-9가-힣]/.test(prev)&&/[A-Za-z]/.test(next)){out+='’';continue;} /* apostrophe: don't, it's */
+    out+=ch==='"'?(open?'“':'”'):(open?'‘':'’');}
+  return out;
+}
+{const _t=type;type=function(text,msgType){return _t(curly(text),msgType);};}
+(function(){
+  const fix=n=>{if(n.nodeType===3){const v=n.nodeValue;if(/["']/.test(v)){const c=curly(v);if(c!==v)n.nodeValue=c;}return;}
+    if(n.nodeType===1&&!/^(INPUT|TEXTAREA|SCRIPT|STYLE|PRE)$/.test(n.tagName)){const w=document.createTreeWalker(n,NodeFilter.SHOW_TEXT);let t;while((t=w.nextNode()))fix(t);}};
+  const roots=['screen','choice-area','enCard','logList','codex','cxTip','rEnd'].map(id=>$(id)).filter(Boolean);
+  const mo=new MutationObserver(ms=>ms.forEach(m=>{if(m.type==='characterData')fix(m.target);else m.addedNodes.forEach(fix);}));
+  roots.forEach(r=>{fix(r);mo.observe(r,{childList:true,subtree:true,characterData:true});});
+})();
 
 </script>
 </body>
